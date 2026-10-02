@@ -110,14 +110,16 @@ real gameplay for 1945kiii, attract for slspirit and flagrall, gameplay
 for flagrall, 300 frames of each other clone); write-log findings on
 scroll, buffer timing, sprite use and the questioned RAM ranges.
 
-### M1. Video RTL parity
+### M1. Video RTL parity (DONE, see m1_findings.md)
 
 Verilator frame replay of every M0 capture through the video RTL, fed
 the dumped buffers, scroll and palette; RTL vs MAME pixel-exact. Plus
 synthetic scenes vs k3_render.py: sprites at every wrap position, 857+
 entry lists (budget edge), flicker bit, tile codes past the region end
 (modulo), all-palette sweeps, flagrall raster. Gate: 100% of frames.
-Decide architecture A or B (4.1) here.
+Decide architecture A or B (4.1) here. Decided: A (line renderer reading the
+buffers live), with a sprite tile flag table so parked entries on the
+blank tile cost nothing (m1_findings 2.2, 6).
 
 ### M2. Full-system boot in Verilator
 
