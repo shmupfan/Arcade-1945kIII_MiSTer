@@ -15,7 +15,8 @@
 //   writes). Frame numbering as M2: vblank N = the N-th o_vbl_irq,
 //   displayed frame N = the pixels between vblank N and N+1.
 // Audio: every clock, o_audio must equal the two M6295 outputs of the
-// previous clock summed, x8, saturated to 16 bits (k3_board); mismatches,
+// previous clock summed, x48 (k3 sets) or x12 (flagrall) at the default
+// volume, saturated to 16 bits (k3_board); mismatches,
 // saturated clocks and the peak are printed with the counters.
 // Gate counters printed every 500 vblanks and at the end: renderer overruns
 // and worst line, k3_sys's ROM-area writes, unmapped accesses, 0x8c0000
@@ -158,6 +159,7 @@ int main(int argc, char **argv) {
     uint16_t in_ports[2] = {0xFFFF, 0xFFFF};
     top->i_inputs = in_ports[0]; top->i_system = in_ports[1];
     top->i_pause = 0;
+    top->i_volume = 0;
     top->i_reset = 1; top->i_sdram_rst_n = 0;
     for (int i = 0; i < 16; i++) tick();
     top->i_sdram_rst_n = 1;
@@ -243,7 +245,8 @@ int main(int argc, char **argv) {
             if (have_exp && a != exp_audio) aud_bad++;
             if (a < 0 ? -a > aud_peak : a > aud_peak) aud_peak = a < 0 ? -a : a;
             auto sx14 = [](int v) { return ((v + 8192) & 16383) - 8192; };
-            int sum = 8 * (sx14(S(u_oki1__DOT__u_acc__DOT__sum)) + sx14(S(u_oki2__DOT__u_acc__DOT__sum)));
+            int gain = top->o_flagrall ? 12 : 48;
+            int sum = gain * (sx14(S(u_oki1__DOT__u_acc__DOT__sum)) + sx14(S(u_oki2__DOT__u_acc__DOT__sum)));
             exp_audio = sum > 32767 ? 32767 : sum < -32768 ? -32768 : sum;
             if (exp_audio != sum) aud_sat++;
             have_exp = true;

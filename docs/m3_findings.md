@@ -137,11 +137,73 @@ command, or part of it is the phrase-end timing of R7, was not separated.
 
 ## 6. Level on the board
 
-The board mixes OKI 1 + OKI 2 x8 with saturation (k3_board): 6 dB below
-MAME's scale, chosen because MAME's own sum clips (Flag Rally attract peaks
-at 2,415 units of 2,048, MAME clips 6 samples; gameplay 2,237, 10 samples).
-At x8 the loudest sample of every run is 19,320 of 32,767, so the board
-never clips. Checked per clock in the board harness (m4_findings).
+Revised 2026-10-03 after Lee's hardware test ("the sound is quite low").
+M3 checks the core against MAME's scale; the output level on the MiSTer
+is a separate choice, because the PCB sets its level with a volume pot
+after the two M6295 (VR1, driver notes L72/L94). The first board build
+used x8 for every set, which left the k3 sets about 15 dB below the
+other cores.
+
+Reference: Final Star Force on the Tecmo 16 core, which Lee reports as
+normal loudness. Its board mix (Tecmo 16 sim/build/m3, 48 kHz stereo),
+1 s RMS over active seconds:
+
+| Run | Peak | Median | p95 | Clipped samples |
+|---|---|---|---|---|
+| fs_play (64 s) | -0.0 dBFS | -16.4 dBFS | -13.0 dBFS | 44 |
+| fs_attract (63 s) | -0.1 dBFS | -18.8 dBFS | -13.4 dBFS | 0 |
+| Dooyong pollux / lastday / bluehawk | -0.0 / -3.1 / -2.6 dBFS | RMS -12.3 / -18.1 / -19.9 dBFS (whole run) | | |
+
+This core, measured on the M3 runs (unclipped M6295 sum, 7,575.76 Hz):
+
+| Run | Gain | Peak | Median | p95 | Clipped |
+|---|---|---|---|---|---|
+| k3_play | x8 (old) | -15.6 | -32.9 | -28.1 | 0 |
+| k3_play | **x48** | -0.0 | -17.4 | -12.5 | 0 |
+| k3_attract | **x48** | -0.4 | -19.3 | -12.6 | 0 |
+| slspirit_attract | **x48** | -0.4 | -19.1 | -12.9 | 0 |
+| k3 sets | x64 | -0.0 | -14.9 | -10.1 | 0.013-0.016% |
+| flagrall_play | x8 (old) | -5.3 | -22.2 | -18.6 | 0 |
+| flagrall_play | **x12** | -1.7 | -18.7 | -15.1 | 0 |
+| flagrall_attract | **x12** | -1.1 | -18.6 | -15.0 | 0 |
+| flagrall | x16 | -0.0 | -16.2 | -12.6 | about 0.001% |
+
+Chosen: x48 for the k3 sets and x12 for Flag Rally (whose music runs
+about 11 dB hotter in M6295 units). Typical gameplay lands within about
+1-2 dB of Final Star Force and no sample of any M3 run clips; the
+loudest k3 sample (681 units) gives 32,688 of 32,767. Saturation stays as
+a safety net. An OSD option (O78 "Volume": Normal, +6 dB, -6 dB, -12 dB)
+shifts the gain; at +6 dB loud passages saturate by design. The board
+harness checks o_audio against 48 x (k3) or 12 x (Flag Rally) the two
+M6295 outputs every clock: 0 mismatches and 0 saturated clocks over 1,500
+frames of k3_play (peak 32,688) and flagrall_play. Only the final output
+gain changed; nothing that the MAME comparisons read.
+
+## 6.1 Silence during the continue countdown (Lee, 2026-10-03)
+
+Lee heard no sound during the continue countdown. MAME does the same.
+Run: 1945kiii and slspirit from power-on, coin at frame 600, start, six
+taps of fire on the ship select, then no input (wiped cfg, `-wavwrite`
+at 7,575 Hz, oracle `writes.csv`; `mame/out/cont_*`).
+
+- 1945kiii: the ship dies, GAME OVER and CONTINUE? 9 appear at about
+  44 s (frame 2,641) and count down to 1 at about 58 s. The game writes
+  two OKI commands at 42 s (the game-over phrase), which has faded by
+  about 50 s; then it writes no OKI command at all until frame 3,599
+  (60.0 s), and the attract restarts at 62 s. MAME's output is silent
+  (RMS 0) from 51 s to 61 s, and 6-9 s earlier during the stage start.
+- slspirit: the same pattern.
+- The core with the same inputs (M6295 at MAME's rate, the `mamefix`
+  build): OKI commands equal MAME's in order, value and frame (58 of 58)
+  to frame 1,491, and per-second levels match MAME's within about 1%
+  for the first 25 s on both sets. A run to frame 3,800 was still going
+  when this was written (the Mac is shared with other simulations); the
+  M2 gate already showed every OKI write equal to MAME's over 5,201
+  frames of gameplay with coin, start, deaths and continues.
+
+Verdict: the silent countdown is the game's own behaviour in MAME, and
+the core reproduces MAME's command stream. Nothing to fix. PCB footage of
+a continue countdown would confirm it on hardware (logged as R11).
 
 ## 7. Files
 
@@ -153,4 +215,4 @@ never clips. Checked per clock in the board harness (m4_findings).
 | `sim/m3/jt6295_busy_patch.py` | the patch-2 edit, used to make the diagnostic copy and the vendored file |
 | `sim/m3.mk` | m3-wav, m3-build, m3-build-mame, m3-build-fix, m3-run, m3-compare |
 | `rtl/vendor/jt6295/hdl/jt6295_serial.v`, `PROVENANCE.md` | patch 2 |
-| `rtl/k3_board.sv` | mix gain x8 with saturation |
+| `rtl/k3_board.sv` | mix gain x48 (k3) / x12 (Flag Rally) with saturation, OSD volume |

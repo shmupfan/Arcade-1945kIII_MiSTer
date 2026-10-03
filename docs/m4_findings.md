@@ -348,3 +348,7 @@ reload. Workaround: load from the menu (reloads the RBF). Tests that would
 narrow it on hardware: the same switch with vsync_adjust=0; the reverse
 switch; whether the analog output shows a picture while HDMI is black.
 If it is the framework's, report it to MiSTer-devel with this trigger.
+
+## Output gain and OSD volume (2026-10-03)
+
+The board mix gain is now x48 for the k3 sets and x12 for Flag Rally (was x8 for all), with an OSD Volume option (O78: Normal, +6 dB, -6 dB, -12 dB). Measurements and the Final Star Force reference are in m3_findings 6. Board harness: o_audio equals the expected gain times the two M6295 outputs on every clock, 0 mismatches and 0 saturated clocks over 1,500 frames of k3_play (peak 32,688) and flagrall_play. Compile 5 (C:\k3_build2): every clock non-negative, core 96 MHz setup +0.994 ns, hold +0.318 ns, HDMI setup +0.502 ns. RBF builds/20261003_0955_Arcade-1945kIII.rbf, md5 ae796bf1a24c25f127f3ec61eb5f50fd.

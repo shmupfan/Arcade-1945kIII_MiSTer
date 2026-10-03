@@ -169,6 +169,7 @@ shmupfan Distribution database.
 | R8 | 68000 interrupt acknowledge: E-clock phase at power-on and the VPA cycle length on the board (core: fx68k; MAME approximates; m2_findings 5.1). Also covers Flag Rally's main-program drift and the routine reorder at attract frame 3,410 (m2_findings 5.4), not yet traced to the instruction | m2_findings 5.1, 5.4 |
 | R9 | M6295 start command to a channel that is still playing: ignored (core, patched jt6295; MAME) or restart (unpatched jt6295). The datasheet or a recording of Solite Spirits / 1945k III on a PCB (the games re-send a start every frame; a restart would replay the attack 60 times a second) would settle it | m3_findings 3, jt6295 PROVENANCE |
 | R10 | M6295 attenuation rounding: MAME truncates each attenuated channel value toward zero (a float passed as s32, okim6295.cpp L352), jt6295 floors it (mul[16:5]); one LSB of 12 bits on negative values. The chip's internal arithmetic is unknown; a capture of the DAC output of an attenuated phrase would settle it. Core: jt6295 (floor) | m3_findings 2 |
+| R11 | Continue countdown sound: MAME is silent from the end of the game-over phrase until the attract restarts (no OKI command between 42 s and 60 s; m3_findings 6.1) and the core matches. PCB footage of a 1945k III or Solite Spirits continue countdown would confirm it | m3_findings 6.1 |
 
 ## 7. Risks
 

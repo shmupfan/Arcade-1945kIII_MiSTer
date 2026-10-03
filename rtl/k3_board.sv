@@ -39,6 +39,7 @@ module k3_board #(
     input  logic [15:0] i_inputs,
     input  logic [15:0] i_system,
     input  logic        i_pause,        // OSD / key pause (k3_sys holds CPU and OKI enables)
+    input  logic [1:0]  i_volume,       // OSD volume: 0 normal, 1 +6 dB, 2 -6 dB, 3 -12 dB
 
     output logic [7:0]  o_r,
     output logic [7:0]  o_g,
@@ -183,17 +184,34 @@ module k3_board #(
   // Both M6295 at gain 1.0 into one mono output (L676, L687); flagrall has
   // only OKI 1 (OKI 2 stays silent). Each jt6295 output is the sum of its
   // four channels in 12-bit units (MAME: 1/2048 of full scale per unit).
-  // Gain x8 with saturation: 6 dB below MAME's scale, where MAME's own sum
-  // clips (Flag Rally gameplay peaks at 2,241 units, 10 clipped samples in
-  // MAME; m3_findings 4). At x8 the loudest sample of every M3 run is
-  // 17,928 of 32,767. Both operands signed (Dooyong landmine: one unsigned
-  // operand makes the whole sum unsigned).
+  // Output gain with saturation (m3_findings 6). The PCB sets level with a
+  // volume pot after the OKIs (VR1, L72/L94), so absolute level is ours to
+  // choose. Reference: Final Star Force on the Tecmo 16 core, gameplay
+  // 1 s RMS median -16.4 dBFS, p95 -13.0 dBFS. Gains (measured on every M3
+  // run, unclipped M6295 sum in 12-bit units):
+  //   k3 sets: x48. k3_play median -17.4, p95 -12.5, peak 681 units ->
+  //            32,688 (-0.0 dBFS); 0 samples clip in any k3 run (x64 would
+  //            clip 0.013-0.016%). The old x8 left them about 15 dB quieter.
+  //   flagrall: x12. Median -18.7, p95 -15.1, peak 2,415 units -> 28,980
+  //            (-1.1 dBFS), 0 clipped (x16 would clip about 0.001%).
+  // i_volume (OSD): 0 normal, 1 +6 dB, 2 -6 dB, 3 -12 dB; saturation keeps
+  // +6 dB safe on loud passages. Both operands signed (Dooyong landmine:
+  // one unsigned operand makes the whole sum unsigned).
   logic signed [14:0] mix;
-  logic signed [17:0] amp;
-  assign mix = 15'(oki1_snd) + 15'(oki2_snd);
-  assign amp = 18'(mix) <<< 3;
+  logic signed [21:0] base, amp;
+  assign mix  = 15'(oki1_snd) + 15'(oki2_snd);
+  assign base = machine ? (22'(mix) <<< 3) + (22'(mix) <<< 2)    // x12
+                        : (22'(mix) <<< 5) + (22'(mix) <<< 4);   // x48
+  always_comb begin
+    case (i_volume)
+      2'd1:    amp = base <<< 1;
+      2'd2:    amp = base >>> 1;
+      2'd3:    amp = base >>> 2;
+      default: amp = base;
+    endcase
+  end
   always_ff @(posedge clk)
-    o_audio <= (amp > 18'sd32767)  ? 16'sh7FFF :
-               (amp < -18'sd32768) ? 16'sh8000 : amp[15:0];
+    o_audio <= (amp > 22'sd32767)  ? 16'sh7FFF :
+               (amp < -22'sd32768) ? 16'sh8000 : amp[15:0];
 
 endmodule

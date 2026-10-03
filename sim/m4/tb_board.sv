@@ -33,7 +33,8 @@ module tb_board #(
     output logic [15:0] o_dbg_ram8c_hi,
     output logic [15:0] o_dbg_wstall,
     output logic [15:0] o_dbg_prom_late,
-    input  logic        i_pause
+    input  logic        i_pause,
+    input  logic [1:0]  i_volume
 );
   wire [12:0] A;
   wire [1:0]  BA;
@@ -46,7 +47,7 @@ module tb_board #(
     .i_ioctl_download(i_ioctl_download), .i_ioctl_wr(i_ioctl_wr),
     .i_ioctl_addr(i_ioctl_addr), .i_ioctl_dout(i_ioctl_dout),
     .i_ioctl_index(i_ioctl_index), .o_ioctl_wait(o_ioctl_wait),
-    .i_inputs(i_inputs), .i_system(i_system), .i_pause(i_pause),
+    .i_inputs(i_inputs), .i_system(i_system), .i_pause(i_pause), .i_volume(i_volume),
     .o_r(o_r), .o_g(o_g), .o_b(o_b), .o_hblank(hb), .o_vblank(vb),
     .o_hs(hs), .o_vs(vs), .o_de(o_de), .o_ce_pix(o_ce_pix),
     .o_audio(o_audio), .o_flagrall(o_flagrall), .o_pen(o_pen), .o_vbl_irq(o_vbl_irq),
