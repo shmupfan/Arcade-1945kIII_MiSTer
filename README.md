@@ -97,11 +97,9 @@ documents.
 - **Continue countdown.** It is silent, as in MAME: the game sends no
   sound commands between the game-over phrase and the attract restart.
 
-Known issue: switching from a vertical set to Flag Rally (or back)
-without reloading the core gives a black picture. The core and its shell
-switch correctly in simulation; the cause is downstream in the MiSTer
-framework (docs/m4_findings.md 9.1). Loading a game from the menu always
-reloads the core, so normal use is not affected.
+Switching between a vertical set and Flag Rally without reloading the core
+works since the 20261004 release: video sync now keeps running during ROM
+loading (docs/m4_findings.md 9.1).
 
 ## Architecture
 

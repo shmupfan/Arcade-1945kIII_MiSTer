@@ -418,3 +418,11 @@ recovery and removal positive. 41% ALMs, 31% RAM blocks. Board A/B on the
 merged RTL (base c9a69e7 vs the fix, 1945kiii, 601 frames): 693 / 693
 capture files identical; 30 vsyncs and 0 lit pixels during the download
 (base: 1 vsync).
+
+### 9.1 resolved on hardware (2026-10-04)
+
+With the 20261004 release (sync runs during ROM download and reset), loading
+'96 Flag Rally directly over a running Solite Spirits shows the Flag Rally
+title and attract on the MiSTer (screenshots 25 s and 50 s after load_core),
+where the earlier builds showed black. The black picture was the scaler
+losing sync while the core's video timing was frozen during the download.
