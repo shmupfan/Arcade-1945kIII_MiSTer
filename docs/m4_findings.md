@@ -408,3 +408,13 @@ builds/20261003_2318_preR17_Arcade-1945kIII.rbf, md5
 +0.868 ns, HDMI +0.496 ns, hold all positive), 40% ALMs, 31% RAM blocks.
 A timing check only: not staged or installed; the release build follows
 the R17 commit.
+
+**Release build** (jt6295 variant e from c9a69e7, plus the two commits
+above): builds/20261004_0006_Arcade-1945kIII.rbf =
+releases/Arcade-1945kIII_20261004.rbf, md5
+a19de473462e322cbdbd3a9d596bbc8d. All clocks non-negative: core 96 MHz
+setup +1.173 ns, hold +0.317 ns; HDMI setup +0.539 ns, hold +0.205 ns;
+recovery and removal positive. 41% ALMs, 31% RAM blocks. Board A/B on the
+merged RTL (base c9a69e7 vs the fix, 1945kiii, 601 frames): 693 / 693
+capture files identical; 30 vsyncs and 0 lit pixels during the download
+(base: 1 vsync).

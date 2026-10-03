@@ -11,7 +11,7 @@ to `/media/fat/_Arcade/_alternatives/_1945k III/`.
 
 | File | md5 | Notes |
 |------|-----|-------|
-| `Arcade-1945kIII_20261003.rbf` | `5a19ad4257396c379cca7c6e061c8fc7` | First release: 1945k III (four sets), Solite Spirits, '96 Flag Rally. |
+| `Arcade-1945kIII_20261004.rbf` | `a19de473462e322cbdbd3a9d596bbc8d` | First release: 1945k III (four sets), Solite Spirits, '96 Flag Rally. |
 
 Every released RBF passed, in order: frame replay against MAME for every
 set (video pixel-exact), full-system boots against MAME from power-on, a
