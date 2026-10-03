@@ -41,10 +41,20 @@
 //      (spec 8.3).
 // One writer drains the returned words at one pixel per clock.
 
-module k3_video (
+module k3_video #(
+    // 1 (MiSTer board): the raster counters and sync run from power-on and
+    // keep going while the core is held in reset (ROM download, SDRAM
+    // init), with black RGB; i_tim_rst reloads their power-on state once a
+    // frame and k3_sys releases the core on the clock after that reload, so
+    // the game starts exactly as from a plain reset release (M1/M2 state).
+    // 0 (simulation default): counters and sync reset with rst_n.
+    parameter bit FREE_TIMING = 1'b0
+) (
     input  logic        clk,
     input  logic        rst_n,
     input  logic        ce_pix,
+    input  logic        i_tim_rst,      // FREE_TIMING: synchronous raster reload
+    output logic        o_tim_evt,      // FREE_TIMING: the next pixel starts the power-on line
     input  logic        i_flagrall,     // 0: k3 sets, 1: '96 Flag Rally
 
     // CPU side, decoded by the system (M2): word address within each RAM,
@@ -115,20 +125,23 @@ module k3_video (
   // Power-on phase as in MAME: the screen starts at the first vblank line
   // and the first vblank interrupt comes one frame later (the Dooyong
   // oracle measured this, dooyong m3/ym2203 findings).
+  wire tim_rst = FREE_TIMING ? i_tim_rst : !rst_n;
+  wire [8:0] vcnt_next = (vcnt == v_total - 9'd1) ? 9'd0 : vcnt + 9'd1;
+  assign o_tim_evt = ce_pix && hcnt == 9'(H_TOTAL - 1) && vcnt_next == v_act;
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
+    if (tim_rst) begin
       hcnt <= '0;
       vcnt <= v_act;
-      irq_armed <= 1'b0;
     end else if (ce_pix) begin
       if (hcnt == 9'(H_TOTAL - 1)) begin
         hcnt <= '0;
-        if (vcnt == v_total - 9'd1) begin
-          vcnt <= '0;
-          irq_armed <= 1'b1;
-        end else vcnt <= vcnt + 9'd1;
+        vcnt <= vcnt_next;
       end else hcnt <= hcnt + 9'd1;
     end
+  end
+  always_ff @(posedge clk) begin
+    if (!rst_n) irq_armed <= 1'b0;
+    else if (ce_pix && hcnt == 9'(H_TOTAL - 1) && vcnt == v_total - 9'd1) irq_armed <= 1'b1;
   end
   wire line_start = ce_pix && hcnt == 9'd0;
   always_ff @(posedge clk)
@@ -539,7 +552,7 @@ module k3_video (
   endfunction
 
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
+    if (tim_rst) begin
       o_de <= 1'b0;
       o_hblank <= 1'b1;
       o_vblank <= 1'b1;
@@ -551,9 +564,10 @@ module k3_video (
       o_vblank <= vcnt >= v_act;
       o_hs     <= hcnt >= 9'(HS_START) && hcnt < 9'(HS_END);
       o_vs     <= vcnt >= vs_start && vcnt < vs_start + 9'd3;
-      o_r      <= x5(pal_q[4:0]);
-      o_g      <= x5(pal_q[9:5]);
-      o_b      <= x5(pal_q[14:10]);
+      // black while the core is held in reset (FREE_TIMING keeps sync running)
+      o_r      <= (rst_n || !FREE_TIMING) ? x5(pal_q[4:0])   : 8'd0;
+      o_g      <= (rst_n || !FREE_TIMING) ? x5(pal_q[9:5])   : 8'd0;
+      o_b      <= (rst_n || !FREE_TIMING) ? x5(pal_q[14:10]) : 8'd0;
       o_pen    <= pen_d;
     end
   end

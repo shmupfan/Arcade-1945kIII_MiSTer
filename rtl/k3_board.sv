@@ -128,6 +128,7 @@ module k3_board #(
 
   // ------------------------------------------------------------------ SDRAM
   logic        core_rst_n;
+  logic        core_run;
   logic        sd_ready;
   logic        prom_req, prom_ok;
   logic [19:1] prom_addr;
@@ -145,7 +146,7 @@ module k3_board #(
     .clk(clk), .rst_n(i_sdram_rst_n), .o_ready(sd_ready),
     .i_dl_wr(rom_wr), .i_dl_addr(i_ioctl_addr[23:0]), .i_dl_data(i_ioctl_dout),
     .o_dl_busy(o_ioctl_wait),
-    .i_cpu_run(core_rst_n), .i_cpu_req(prom_req), .i_cpu_addr(prom_addr), .o_cpu_data(prom_data), .o_cpu_ok(prom_ok),
+    .i_cpu_run(core_run), .i_cpu_req(prom_req), .i_cpu_addr(prom_addr), .o_cpu_data(prom_data), .o_cpu_ok(prom_ok),
     .i_gfx_req(rom_req), .i_gfx_addr(rom_addr), .o_gfx_gnt(rom_gnt),
     .o_gfx_rv(rom_rv), .o_gfx_data(rom_data),
     .i_oki1_addr(oki1_addr), .o_oki1_data(oki1_data), .o_oki1_ok(oki1_ok),
@@ -162,8 +163,13 @@ module k3_board #(
 
   logic signed [13:0] oki1_snd, oki2_snd;
 
-  k3_sys #(.CLK_HZ(CLK_HZ), .PIX_NUM(PIX_NUM), .PIX_DEN(PIX_DEN)) u_sys (
-    .clk(clk), .rst_n(core_rst_n), .i_flagrall(machine), .i_pause(i_pause),
+  // FREE_TIMING: sync keeps running (black picture) during the ROM download
+  // and SDRAM init instead of stopping, so the MiSTer scaler never loses the
+  // signal (Dooyong showed a green "no input" screen for about a second);
+  // k3_sys releases the core on the raster's power-on phase (core_run).
+  k3_sys #(.CLK_HZ(CLK_HZ), .PIX_NUM(PIX_NUM), .PIX_DEN(PIX_DEN), .FREE_TIMING(1'b1)) u_sys (
+    .clk(clk), .rst_n(core_rst_n), .i_pwr_rst_n(i_sdram_rst_n), .o_run(core_run),
+    .i_flagrall(machine), .i_pause(i_pause),
     .o_prom_req(prom_req), .o_prom_addr(prom_addr), .i_prom_data(prom_data), .i_prom_ok(prom_ok),
     .o_oki1_addr(oki1_addr), .i_oki1_data(oki1_data), .i_oki1_ok(oki1_ok),
     .o_oki2_addr(oki2_addr), .i_oki2_data(oki2_data), .i_oki2_ok(oki2_ok),

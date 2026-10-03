@@ -77,10 +77,16 @@ module k3_sys #(
     // M6295 enable rate. 1,000,000 = MASTER_CLOCK / 16 (L675, L686). Override
     // only for diagnostics (m2_findings 5.3: 999,900 reproduces MAME 0.288's
     // integer-truncated 7,575 Hz OKI sample rate).
-    parameter int OKI_HZ = 1000000
+    parameter int OKI_HZ = 1000000,
+    // 1 on the MiSTer board: the video raster runs from i_pwr_rst_n and keeps
+    // sync during the core reset (k3_video FREE_TIMING); 0 = M1/M2 behaviour.
+    // Requires VID_DELAY = 0.
+    parameter bit FREE_TIMING = 1'b0
 ) (
     input  logic        clk,
-    input  logic        rst_n,
+    input  logic        rst_n,          // core reset request (active low)
+    input  logic        i_pwr_rst_n,    // FREE_TIMING: power-on reset of the video raster
+    output logic        o_run,          // core out of reset (effective)
     input  logic        i_flagrall,
     input  logic        i_pause,        // holds the 68000 and the OKIs; video keeps scanning
 
@@ -143,19 +149,37 @@ module k3_sys #(
     output logic [23:0] o_cpu_pc_dbg
 );
 
+  // ================================================================ reset
+  // FREE_TIMING: the raster counters and the pixel enable run from power-on;
+  // tim_evt (k3_video) marks the pixel enable that would start the power-on
+  // line (v_act), and while the core is in reset that enable reloads the
+  // counters and the pixel accumulator to their reset values instead. The
+  // core is released on the clock after such a reload (tim_fresh), so its
+  // first running clock sees exactly the state a reset release gives.
+  logic tim_evt, tim_fresh, run_q, tim_rst;
+  logic crst_n;
+  wire  tim_load = FREE_TIMING && !crst_n && tim_evt;
+  assign crst_n  = FREE_TIMING ? (rst_n && i_pwr_rst_n && (run_q || tim_fresh)) : rst_n;
+  always_ff @(posedge clk) begin
+    tim_fresh <= tim_rst;
+    run_q     <= crst_n;
+  end
+  assign o_run = crst_n;
+
   // ================================================================ enables
   logic        vrst_n;
   generate
     if (VID_DELAY == 0) begin : g_vrst
-      assign vrst_n = rst_n;
+      assign vrst_n = crst_n;
     end else begin : g_vrst_dly
       logic [15:0] vd_cnt;
       always_ff @(posedge clk)
-        if (!rst_n) vd_cnt <= '0;
+        if (!crst_n) vd_cnt <= '0;
         else if (vd_cnt != 16'(VID_DELAY)) vd_cnt <= vd_cnt + 16'd1;
-      assign vrst_n = rst_n && vd_cnt == 16'(VID_DELAY);
+      assign vrst_n = crst_n && vd_cnt == 16'(VID_DELAY);
     end
   endgenerate
+  assign tim_rst = FREE_TIMING ? (!i_pwr_rst_n || tim_load) : !vrst_n;
   logic        ce_pix /* verilator public_flat_rd */;
   logic [15:0] pix_acc;
   logic [27:0] m_acc, o_acc;
@@ -163,7 +187,7 @@ module k3_sys #(
   localparam int F68  = 16000000;   // MASTER_CLOCK (L655, L660)
   localparam int FOKI = OKI_HZ;     // MASTER_CLOCK / 16 (L675, L686)
   always_ff @(posedge clk) begin
-    if (!vrst_n) begin
+    if (tim_rst) begin
       pix_acc <= '0;
       ce_pix  <= 1'b0;
     end else if (pix_acc + 16'(PIX_NUM) >= 16'(PIX_DEN)) begin
@@ -178,7 +202,7 @@ module k3_sys #(
     en_phi1 <= 1'b0;
     en_phi2 <= 1'b0;
     oki_cen <= 1'b0;
-    if (!rst_n) begin
+    if (!crst_n) begin
       m_acc   <= '0;
       m_ph    <= 1'b0;
       o_acc   <= '0;
@@ -211,7 +235,7 @@ module k3_sys #(
 
   fx68k u_m68k (
     .clk(clk), .HALTn(1'b1),
-    .extReset(!rst_n), .pwrUp(!rst_n),
+    .extReset(!crst_n), .pwrUp(!crst_n),
     .enPhi1(en_phi1), .enPhi2(en_phi2),
     .eRWn(m_rw), .ASn(m_asn), .LDSn(m_ldsn), .UDSn(m_udsn),
     .E(), .VMAn(),
@@ -230,7 +254,7 @@ module k3_sys #(
   // IRQ4: set at vblank, cleared by the level 4 acknowledge (L662)
   logic vbl_irq, irq4_p;
   always_ff @(posedge clk) begin
-    if (!rst_n) irq4_p <= 1'b0;
+    if (!crst_n) irq4_p <= 1'b0;
     else begin
       if (vbl_irq) irq4_p <= 1'b1;
       if (m_iack && m_a[3:1] == 3'd4) irq4_p <= 1'b0;
@@ -285,7 +309,7 @@ module k3_sys #(
   assign o_prom_req  = (mbst == MB_ROM);
   assign o_prom_addr = m_a[19:1];
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
+    if (!crst_n) begin
       mbst    <= MB_IDLE;
       m_wdone <= 1'b0;
       o_dbg_wstall <= '0;
@@ -352,7 +376,7 @@ module k3_sys #(
   wire        newval = i_flagrall ? fr_new : k3_new;
   always_ff @(posedge clk) begin
     copy <= 1'b0;
-    if (!rst_n) begin
+    if (!crst_n) begin
       refresh <= 1'b0;
       bank0   <= '0;
       bank1   <= 1'b0;
@@ -376,12 +400,12 @@ module k3_sys #(
   logic [17:0] oki1_ra, oki2_ra;
   logic        oki1_smp;
   jt6295 #(.INTERPOL(0)) u_oki1 (
-    .rst(!rst_n), .clk(clk), .cen(oki_cen), .ss(1'b1),     // PIN7_HIGH (L675)
+    .rst(!crst_n), .clk(clk), .cen(oki_cen), .ss(1'b1),     // PIN7_HIGH (L675)
     .wrn(!oki1_w), .din(oki_wd), .dout(oki1_dout),
     .rom_addr(oki1_ra), .rom_data(i_oki1_data), .rom_ok(i_oki1_ok),
     .sound(o_oki1), .sample(oki1_smp));
   jt6295 #(.INTERPOL(0)) u_oki2 (
-    .rst(!rst_n || i_flagrall), .clk(clk), .cen(oki_cen), .ss(1'b1),
+    .rst(!crst_n || i_flagrall), .clk(clk), .cen(oki_cen), .ss(1'b1),
     .wrn(!oki2_w), .din(oki_wd), .dout(oki2_dout),
     .rom_addr(oki2_ra), .rom_data(i_oki2_data), .rom_ok(i_oki2_ok),
     .sound(o_oki2), .sample());
@@ -391,8 +415,9 @@ module k3_sys #(
 
   // ================================================================ video
   logic [15:0] pal_q, bg_q, s0_q, s1_q;
-  k3_video u_video (
+  k3_video #(.FREE_TIMING(FREE_TIMING)) u_video (
     .clk, .rst_n(vrst_n), .ce_pix, .i_flagrall,
+    .i_tim_rst(tim_rst), .o_tim_evt(tim_evt),
     .i_cpu_addr(m_a[11:1]), .i_cpu_din(m_dout), .i_cpu_be(m_be),
     .i_pal_we(m_wstb && s_pal), .i_bg_we(m_wstb && s_bg),
     .i_spr0_we(m_wstb && s_spr0), .i_spr1_we(m_wstb && s_spr1),
@@ -429,7 +454,7 @@ module k3_sys #(
   logic m_asn_q;
   always_ff @(posedge clk) begin
     m_asn_q <= m_asn;
-    if (!rst_n) begin
+    if (!crst_n) begin
       o_dbg_rom_writes <= '0;
       o_dbg_unmapped   <= '0;
       o_dbg_ram8c_hi   <= '0;

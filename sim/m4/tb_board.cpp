@@ -54,10 +54,29 @@
 static std::unique_ptr<Vtb_board> top;
 static uint64_t cyc = 0;
 
+// Video-during-reset statistics (boot black-screen fix): vsync rising
+// edges and lit active pixels while the core is not running (o_vbl_irq not
+// seen since the last download/reset) vs running.
+static int vphase = 0;                 // 0 = core not yet running, 1 = running
+static long vs_edges[2], lit_px[2], de_px[2];
+static bool vs_prev = false;
 static void tick() {
     top->clk = 0; top->eval();
     top->clk = 1; top->eval();
     cyc++;
+    bool vs = top->rootp->tb_board__DOT__vs;
+    if (vs && !vs_prev) vs_edges[vphase]++;
+    vs_prev = vs;
+    if (top->o_de && top->o_ce_pix) {
+        de_px[vphase]++;
+        if (top->o_r | top->o_g | top->o_b) lit_px[vphase]++;
+    }
+    if (top->o_vbl_irq && vphase == 0) {
+        printf("PRE-RUN vs_edges %ld de_px %ld lit_px %ld (clock %llu)\n",
+               vs_edges[0], de_px[0], lit_px[0], (unsigned long long)cyc);
+        vs_edges[0] = de_px[0] = lit_px[0] = 0;
+        vphase = 1;
+    }
 }
 
 static std::string plus(const char *name, const char *def) {
@@ -170,6 +189,7 @@ int main(int argc, char **argv) {
         // stream (index 0), then the DIP switches (index 254)
         uint64_t t = cyc;
         top->i_reset = 1;
+        vphase = 0;
         top->i_ioctl_download = 1;
         send(1, 0, (uint8_t)mach);
         top->i_ioctl_download = 0;
@@ -274,7 +294,7 @@ int main(int argc, char **argv) {
         }
         if (top->o_vbl_irq) {
             if (frame > 0 && cap.count(frame)) {
-                char fn[96];
+                char fn[512];
                 snprintf(fn, sizeof fn, "%s/%06ld.rgbp", out.c_str(), frame);
                 if (px.size() != frame_px * 5) fprintf(stderr, "frame %ld: %zu pixels\n", frame, px.size() / 5);
                 dump(fn, px.data(), px.size());
