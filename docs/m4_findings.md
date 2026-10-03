@@ -352,3 +352,59 @@ If it is the framework's, report it to MiSTer-devel with this trigger.
 ## Output gain and OSD volume (2026-10-03)
 
 The board mix gain is now x48 for the k3 sets and x12 for Flag Rally (was x8 for all), with an OSD Volume option (O78: Normal, +6 dB, -6 dB, -12 dB). Measurements and the Final Star Force reference are in m3_findings 6. Board harness: o_audio equals the expected gain times the two M6295 outputs on every clock, 0 mismatches and 0 saturated clocks over 1,500 frames of k3_play (peak 32,688) and flagrall_play. Compile 5 (C:\k3_build2): every clock non-negative, core 96 MHz setup +0.994 ns, hold +0.318 ns, HDMI setup +0.502 ns. RBF builds/20261003_0955_Arcade-1945kIII.rbf, md5 ae796bf1a24c25f127f3ec61eb5f50fd.
+
+## Video during ROM download and reset; HDMI video options (2026-10-03)
+
+**Problem.** Lee saw a solid green screen for about a second when a core
+starts (seen on the Dooyong core, same design here). k3_board held
+core_rst_n low through the ROM download and SDRAM init, which also reset
+the pixel enable and froze the raster counters, so there was no hsync or
+vsync and the MiSTer output showed its no-signal state. Not confirmed on
+hardware as the cause; the board sim shows the missing sync.
+
+**Fix (k3_sys/k3_video parameter FREE_TIMING, set to 1 by k3_board only).**
+The pixel enable and the raster counters run from the PLL lock
+(i_pwr_rst_n) and keep producing sync while the core is held in reset;
+RGB is forced to 0 while the core is in reset. Once a frame, the pixel
+enable that would start the power-on line (v_act) instead reloads the
+counters and the pixel accumulator to their reset values, and the core
+reset is released on the clock after such a reload (k3_sys crst_n, also
+driving the SDRAM controller's CPU port via o_run). The first running
+clock therefore sees exactly the state of a plain reset release, so every
+MAME comparison is unchanged. FREE_TIMING = 0 (the M1/M2 harness
+default) is the old logic. The release waits at most one frame after the
+download ends.
+
+**Verification (board harness, A = 2ffe36f, B = the fix, same harness).**
+
+| Run | Frames | Capture files identical | Before the core runs (B) |
+|---|---|---|---|
+| 1945kiii | 601 | 693 / 693 | 30 vsyncs, 0 lit pixels (A: 1 vsync) |
+| flagrall | 601 | 630 / 630 | 25 vsyncs, 0 lit pixels (A: 1 vsync) |
+| slspirit for 300 frames, then a Flag Rally download over it | 200 | n/a | 25 vsyncs during the second download, 0 lit pixels |
+
+M1 replay on the changed k3_video: 7,821 / 7,821 frames exact. Worst
+render line and the gate counters are unchanged; only the SDRAM refresh
+phase relative to the core start differs (the controller runs from
+power-on), which moves no program fetch past the 12-clock limit.
+
+Known issue 9.1 (Flag Rally black when switched in over Solite Spirits
+without a core reload) may be fixed by this, since sync no longer stops
+during the switch; it needs a hardware check.
+
+**HDMI options (shell only, as the Hyper Duel core).** video_freak now
+supplies VIDEO_ARX/ARY: Aspect ratio (as before), Scale (Normal,
+V-Integer, Narrower HV-Integer, Wider HV-Integer) and a 216-line
+Vertical Crop (an exact 5x on 1080p) with Crop Offset. The crop masks
+VGA_DE, which only reaches the scaler for output that is not rotated
+(screen_rotate's frame buffer keeps the whole picture), so it is offered
+only for the k3 sets with Orientation Horizontal (224 lines), not for
+rotated output or Flag Rally's 240 lines (menumask bits 1/2). The shell
+lints clean with the framework stubs.
+
+**Pre-R17 timing build** (jt6295 a+b+c, before the R17 stop/start fix):
+builds/20261003_2318_preR17_Arcade-1945kIII.rbf, md5
+7c9779021413c1fb02541008cf340e68, all clocks positive (core 96 MHz setup
++0.868 ns, HDMI +0.496 ns, hold all positive), 40% ALMs, 31% RAM blocks.
+A timing check only: not staged or installed; the release build follows
+the R17 commit.
