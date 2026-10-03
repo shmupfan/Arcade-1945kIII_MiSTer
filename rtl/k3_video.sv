@@ -194,8 +194,14 @@ module k3_video (
   logic [1023:0] mk_bg;
   logic [2047:0] mk_s0, mk_s1;
 
-  wire wq_marked = (wq_ram[0] && mk_bg[wq_idx[9:0]]) || (wq_ram[1] && mk_s0[wq_idx])
-                || (wq_ram[2] && mk_s1[wq_idx]);
+  // Timing: the 2,048-way mark lookup for the queued write is done one
+  // clock early, from the CPU address as it enters stage R, so it does not
+  // sit in front of the RAM write enables and port B address. wq_mk_* equal
+  // mk_*[wq_idx] exactly: they include the mark a save sets on that same
+  // edge (sv_go) and the clear at a copy start (i_copy).
+  logic wq_mk_bg, wq_mk_s0, wq_mk_s1;
+  wire wq_marked = (wq_ram[0] && wq_mk_bg) || (wq_ram[1] && wq_mk_s0)
+                || (wq_ram[2] && wq_mk_s1);
   wire wq_copied = wq_ram[0] && wq_idx[10];        // tile words 1024+ are not buffered
   wire save_now  = wq_v && cp_run && ({1'b0, wq_idx} >= cp_idx) && !wq_marked && !wq_copied;
   wire [10:0] live_b_addr = save_now ? wq_idx : cp_idx[10:0];
@@ -208,6 +214,12 @@ module k3_video (
       wq_v   <= i_bg_we || i_spr0_we || i_spr1_we;
       wq_ram <= {i_spr1_we, i_spr0_we, i_bg_we};
       wq_idx <= i_cpu_addr[10:0];
+      wq_mk_bg <= !i_copy && (mk_bg[i_cpu_addr[9:0]]
+                  || (sv_go && sv_ram[0] && sv_idx[9:0] == i_cpu_addr[9:0]));
+      wq_mk_s0 <= !i_copy && (mk_s0[i_cpu_addr[10:0]]
+                  || (sv_go && sv_ram[1] && sv_idx == i_cpu_addr[10:0]));
+      wq_mk_s1 <= !i_copy && (mk_s1[i_cpu_addr[10:0]]
+                  || (sv_go && sv_ram[2] && sv_idx == i_cpu_addr[10:0]));
       wq_din <= i_cpu_din;
       wq_be  <= i_cpu_be;
       sv_go  <= save_now;
