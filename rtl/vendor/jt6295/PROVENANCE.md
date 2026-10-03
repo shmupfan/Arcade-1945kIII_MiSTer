@@ -4,7 +4,7 @@ Copied 2026-10-02 from the Dooyong core (dooyong-mister/rtl/vendor/jt6295,
 repository commit d0445799bba5e09097d14e5c65e3794cfedf2b79). Jose Tejada,
 GPL-3.0 (LICENSE). Two instances (PLAN M2/M3).
 
-## Patch in this core (2026-10-02, m2_findings 5.3)
+## Patch 1 in this core (2026-10-02, m2_findings 5.3): phrase end
 
 `hdl/jt6295_serial.v`: the phrase end. Original
 `assign over = rom_addr >= stop_out;` ends a voice when its byte address
@@ -20,6 +20,37 @@ stop byte). Measured with sim/m2/okitest (jt6295 alone, phrases 1, 5, 9,
 frame and restarts its music when a channel goes idle; with the original
 end its 16.8 s track ended one poll early (frame 1505 instead of MAME's
 1506), and the program diverged from MAME from there.
+
+## Patch 2 in this core (2026-10-03, m3_findings 3): start on a busy channel
+
+`hdl/jt6295_serial.v`: a start command for a channel that is still playing.
+The original reloads the channel (start address, stop address, attenuation)
+whenever its start request comes round, busy or not, so a busy channel
+restarts its phrase from the beginning. Patched: `start_ok = up_start &
+~busy_out` replaces `up_start` in the reload terms, so a start to a playing
+channel is ignored; the request is still acknowledged so jt6295_ctrl clears
+it. A stop on the same cycle still wins.
+
+Evidence:
+- MAME 0.288 okim6295.cpp L281-284: a start for a voice that is playing is
+  not performed ("Requested to play sample %02x on non-stopped voice").
+- jt6295's own README (lines 31-33, this copy and upstream): "The current
+  JT6295 is to ignore commands to the same channel as long as the playback
+  has not ended". The code did not do what the README describes; upstream
+  master (jotego/jt6295, checked 2026-10-03) has the same code.
+- The games: Solite Spirits and 1945k III send the same start command to a
+  playing channel every frame (phrase 0x21 on channel 4, 60 times a
+  second). With restarts the attack of the sample replays every frame and
+  the sound is up to 15 dB louder than MAME in those stretches (Solite
+  Spirits attract +7.4 dB overall, 1945k III attract +3.6 dB); with the
+  patch both are within 0.04 dB of MAME and the samples match MAME's (m3).
+  A game written for a chip that restarts would not re-send the command
+  every frame.
+- The OKI MSM6295 datasheet was not checked (jt6295's README also says the
+  real chip's behaviour "has not been verified"). Research item R9 in
+  docs/PLAN.md. Believed accurate: ignore, on the three points above.
+
+The Dooyong and Hyper Duel cores ship jt6295 without this patch.
 
 The Dooyong provenance note follows (it also covers jt51, which this core
 does not use). Edits it lists that apply here: the ramstyle attribute in

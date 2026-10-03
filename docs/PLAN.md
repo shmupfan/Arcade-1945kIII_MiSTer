@@ -167,6 +167,8 @@ shmupfan Distribution database.
 | R6 | 68000 and OKI clocks on the OPCX1 board (4 MHz crystal) | spec 2, 10 |
 | R7 | M6295 phrase end and status timing: is the last nibble of the stop byte played, and when does the busy bit clear (core: stop byte inclusive, busy clears when the last sample ends, jt6295 patched; m2_findings 5.3). A logic-analyser capture of a status poll across a phrase end would settle it | m2_findings 5.3 |
 | R8 | 68000 interrupt acknowledge: E-clock phase at power-on and the VPA cycle length on the board (core: fx68k; MAME approximates; m2_findings 5.1). Also covers Flag Rally's main-program drift and the routine reorder at attract frame 3,410 (m2_findings 5.4), not yet traced to the instruction | m2_findings 5.1, 5.4 |
+| R9 | M6295 start command to a channel that is still playing: ignored (core, patched jt6295; MAME) or restart (unpatched jt6295). The datasheet or a recording of Solite Spirits / 1945k III on a PCB (the games re-send a start every frame; a restart would replay the attack 60 times a second) would settle it | m3_findings 3, jt6295 PROVENANCE |
+| R10 | M6295 attenuation rounding: MAME truncates each attenuated channel value toward zero (a float passed as s32, okim6295.cpp L352), jt6295 floors it (mul[16:5]); one LSB of 12 bits on negative values. The chip's internal arithmetic is unknown; a capture of the DAC output of an attenuated phrase would settle it. Core: jt6295 (floor) | m3_findings 2 |
 
 ## 7. Risks
 

@@ -104,13 +104,18 @@ always @(posedge clk, posedge rst ) begin
 end
 
 assign zero     = ch[0];
-assign update   = up_start | up_stop;
+// k3 patch 2 (PROVENANCE.md): a start for a channel that is still playing
+// is ignored (as MAME and as this core's README describe). MAME
+// okim6295.cpp L281-284. The start request is still acknowledged so the control
+// block clears it.
+wire   start_ok = up_start & ~busy_out;
+assign update   = start_ok | up_stop;
 assign cont     = busy_out & ~over;
 assign cnt_next = cont      ? cnt+19'd1 : cnt;
-assign stop_in  = up_start  ? stop_addr : stop_out;
-assign cnt_in   = up_start  ? {start_addr, 1'b0} : cnt_next;
-assign att_in   = up_start  ? att : att_out;
-assign busy_in  = update    ? (up_start & ~up_stop) : cont;
+assign stop_in  = start_ok  ? stop_addr : stop_out;
+assign cnt_in   = start_ok  ? {start_addr, 1'b0} : cnt_next;
+assign att_in   = start_ok  ? att : att_out;
+assign busy_in  = update    ? (start_ok & ~up_stop) : cont;
 
 wire [CSRW-1:0] csr_in, csr_out;
 assign csr_in = { stop_in, cnt_in, att_in, busy_in };
