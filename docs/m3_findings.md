@@ -215,5 +215,38 @@ a continue countdown would confirm it on hardware (logged as R11).
 | `sim/m3/decompose_oki.py` | per-phrase decomposition (section 1) |
 | `sim/m3/jt6295_busy_patch.py` | the patch-2 edit, used to make the diagnostic copy and the vendored file |
 | `sim/m3.mk` | m3-wav, m3-build, m3-build-mame, m3-build-fix, m3-run, m3-compare |
-| `rtl/vendor/jt6295/hdl/jt6295_serial.v`, `PROVENANCE.md` | patch 2 |
+| `rtl/vendor/jt6295/hdl/jt6295_serial.v`, `PROVENANCE.md` | patches 1-3 (consolidated, section 8) |
 | `rtl/k3_board.sv` | mix gain x48 (k3) / x12 (Flag Rally) with saturation, OSD volume |
+
+## 8. Consolidated jt6295: patch 3 added (2026-10-03)
+
+The jt6295 copy in this core and in the Tecmo 16 core is now one file with
+three patches (rtl/vendor/jt6295/PROVENANCE.md): 1 inclusive stop byte,
+2 start to a busy channel ignored, and 3 from the Tecmo 16 core: the busy
+flags follow the channel state committed at cen4, so a stop that already
+reads idle cannot be cancelled by the next start (Ganbare Ginkun's fade
+steps, tecmo16-mister m3_findings 4). The three touch different terms of
+jt6295_serial.v and do not interact (PROVENANCE.md).
+
+Re-verification of this core with patch 3 (MAME-rate build for sound,
+hardware-rate build for the I/O stream):
+
+| Run | Check | Result |
+|---|---|---|
+| slspirit_attract, 4,001 frames | M3 decomposition against MAME | 17 unexplained samples (as before), +0.033 dB (as before), 1,167 / 1,167 OKI writes equal; exact samples 382,604 (was 382,598); phrases whose stop MAME applies one sample earlier: 20 (was 62) |
+| k3_play | M3 core output | byte-identical to the earlier run to frame 2,500 (run stopped at the shell's two-hour limit) |
+| flagrall_play | M3 core output | byte-identical to the earlier run to frame 2,000 (same) |
+| k3_play | M2 I/O stream | byte-identical to the patch-2 gate, beam positions included, to frame 2,751 |
+| flagrall_play | M2 I/O stream | byte-identical to the patch-2 gate over the full 4,801 frames (29,164 writes, the whole file) |
+
+Patch 3 changes no command, no status read result and no level in this
+core; the only measurable effect is on when a stop takes effect, which now
+lands in the same M6295 sample as MAME's more often (20 phrases ending one
+sample apart instead of 62). Believed accurate: the patched core, on the
+Ginkun evidence in the Tecmo 16 core; MAME applies a stop at once.
+
+Build with the consolidated file and compile 5's output gain (commit
+670c024): compile 6, C:\k3_build2, 2026-10-03 13:28, every clock
+non-negative (core 96 MHz setup +0.563 ns, hold +0.254 ns; HDMI +0.400
+ns), 41% ALMs, 31% RAM blocks; `builds/20261003_1344_Arcade-1945kIII.rbf`,
+md5 5a19ad4257396c379cca7c6e061c8fc7. Not yet on hardware.

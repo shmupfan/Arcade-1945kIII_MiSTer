@@ -1,10 +1,42 @@
 # jt6295 (OKI M6295)
 
-Copied 2026-10-02 from the Dooyong core (dooyong-mister/rtl/vendor/jt6295,
-repository commit d0445799bba5e09097d14e5c65e3794cfedf2b79). Jose Tejada,
-GPL-3.0 (LICENSE). Two instances (PLAN M2/M3).
+Upstream: jotego/jt6295 (Jose Tejada, GPL-3.0, LICENSE), via the Hyper Duel
+and Dooyong cores (lineage below). This directory is IDENTICAL in the
+1945k III core (1945kiii-mister) and the Tecmo 16 core (tecmo16-mister) as of
+2026-10-03: one consolidated patch set, three functional patches, all in
+`hdl/jt6295_serial.v` (md5 of the patched file:
+92d8f1eb470c314f90ae2d13864754ff). Keep the two copies identical; any
+future change goes into both and is re-verified in both.
 
-## Patch 1 in this core (2026-10-02, m2_findings 5.3): phrase end
+| Patch | Change | Found in | Evidence |
+|---|---|---|---|
+| 1 | phrase end includes the stop byte's second nibble | 1945k III M2 | below; MAME plays 2 x (stop - start + 1) samples |
+| 2 | a start to a channel that is still playing is ignored | 1945k III M3 | below; MAME okim6295.cpp L281-284 |
+| 3 | busy flags follow the committed channel state (updated at cen4) | Tecmo 16 M3 | below; Ginkun fade-outs |
+
+The three do not overlap: patch 1 changes `over`, patch 2 the reload terms
+(`start_ok` replaces `up_start` in `update`, `stop_in`, `cnt_in`, `att_in`,
+`busy_in`), patch 3 the clock enable of the `busy` output register.
+Patch 2 reads `busy_out`, the committed state in the CSR shift register,
+which is the same state patch 3 makes the status register report, so a
+stop committed at cen4 both shows idle and allows the next start.
+
+## Patch 3 (Tecmo 16 M3, 2026-10-03): busy follows the committed state
+
+The per-channel `busy` flags are updated on `cen4`, together with the
+channel state in the CSR shift register, instead of on every clock of the
+channel's slot. Upstream (jotego/jt6295 master, identical to the unpatched
+copy) lets a pending stop show as idle for the rest of the slot (up to
+33 us) before it is committed; a start command's first byte clears the
+pending stop in `jt6295_ctrl.v`, so a start written in that window cancels
+the stop: the old phrase plays on at its old attenuation and the new start
+is ignored as busy. Ganbare Ginkun fades sounds by stop, poll status until
+idle, restart at the next attenuation; with upstream jt6295 every step of
+the fade was lost (the M6295 part of the mix up to 4.2 dB above MAME in 2 s
+segments). After the patch the M6295 output matches MAME's level in those
+segments to 0.03 dB (tecmo16-mister docs/m3_findings.md section 4).
+
+## Patch 1 (1945k III M2, 2026-10-02, 1945kiii-mister m2_findings 5.3): phrase end
 
 `hdl/jt6295_serial.v`: the phrase end. Original
 `assign over = rom_addr >= stop_out;` ends a voice when its byte address
@@ -21,7 +53,7 @@ frame and restarts its music when a channel goes idle; with the original
 end its 16.8 s track ended one poll early (frame 1505 instead of MAME's
 1506), and the program diverged from MAME from there.
 
-## Patch 2 in this core (2026-10-03, m3_findings 3): start on a busy channel
+## Patch 2 (1945k III M3, 2026-10-03, 1945kiii-mister m3_findings 3): start on a busy channel
 
 `hdl/jt6295_serial.v`: a start command for a channel that is still playing.
 The original reloads the channel (start address, stop address, attenuation)
@@ -50,7 +82,16 @@ Evidence:
   real chip's behaviour "has not been verified"). Research item R9 in
   docs/PLAN.md. Believed accurate: ignore, on the three points above.
 
-The Dooyong and Hyper Duel cores ship jt6295 without this patch.
+The Dooyong and Hyper Duel cores are being given the same consolidated
+patch set (2026-10-03, Lee's approval) by separate work in those repos.
+
+## Lineage and other edits
+
+Copied 2026-10-02 into the 1945k III core from the Dooyong core
+(dooyong-mister/rtl/vendor/jt6295, commit
+d0445799bba5e09097d14e5c65e3794cfedf2b79); the Tecmo 16 core copied it from
+the Dooyong core on 2026-10-02 as well (tecmo16-mister
+rtl/vendor/SOUND_PROVENANCE.md). Non-functional edits carried in both:
 
 The Dooyong provenance note follows (it also covers jt51, which this core
 does not use). Edits it lists that apply here: the ramstyle attribute in
@@ -77,4 +118,5 @@ Dooyong edits (simulation only, no effect on synthesis):
   for the M3 investigation in `docs/m3_findings.md`; the core uses jt51's
   own timers.
 - `jt6295/hdl/jt6295.v`: `verilator public_flat_rd` comments on the
-  `busy`, `start` and `stop` wires so the harness can log channel state.
+  `busy`, `start` and `stop` wires so the harness can log channel state,
+  plus `att` and `pipe_att` (Tecmo 16 M3 `+okitrace`). Simulation only.
