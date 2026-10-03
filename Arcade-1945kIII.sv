@@ -62,6 +62,9 @@ localparam CONF_STR = {
 	"H0OMN,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"H0O2,Orientation,Vertical,Horizontal;",
 	"O35,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"H0O[13:12],Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"d1O[14],Vertical Crop,Disabled,216p(5x);",
+	"d2O[18:15],Crop Offset,0,1,2,3,4,-4,-3,-2,-1;",
 	"O6,Pause when OSD is open,On,Off;",
 	"O78,Volume,Normal,+6 dB,-6 dB,-12 dB;",
 	"-;",
@@ -76,6 +79,7 @@ localparam CONF_STR = {
 wire [127:0] status;
 wire  [1:0] buttons;
 wire        forced_scandoubler;
+wire        allow_vcrop, vcrop_216;   // video options (assigned with video_freak below)
 wire        direct_video;
 wire [21:0] gamma_bus;
 wire        video_rotated;
@@ -97,7 +101,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io (
 	.gamma_bus(gamma_bus),
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({15'd0, direct_video}),
+	.status_menumask({13'd0, vcrop_216, allow_vcrop, direct_video}),
 	.forced_scandoubler(forced_scandoubler),
 	.direct_video(direct_video),
 	.video_rotated(video_rotated),
@@ -216,8 +220,21 @@ wire rotate_ccw = 1'b1;          // ROT270: turn the picture 90 degrees counter-
 wire flip       = 1'b0;          // the board has no flip-screen control (spec 4)
 
 wire [1:0] ar = status[23:22];
-assign VIDEO_ARX = (!ar) ? ((no_rotate) ? 13'd4 : 13'd3) : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? ((no_rotate) ? 13'd3 : 13'd4) : 12'd0;
+
+// HDMI options through the framework's video_freak (as the Hyper Duel core):
+// aspect, integer scale, and a 216-line crop (an exact 5x on 1080p) of the
+// 224-line picture. The crop masks VGA_DE, so it only applies to output that
+// is not rotated (screen_rotate's frame buffer feeds the scaler for vertical
+// games, which keeps the whole picture): it is offered for the k3 sets with
+// Orientation Horizontal (224 lines), not for vertical output or for Flag
+// Rally's 240 lines. Scale applies either way.
+wire [1:0] scale = status[13:12];
+assign allow_vcrop = ~forced_scandoubler & (scale == 2'd0) & no_rotate & ~flagrall;
+assign vcrop_216   = allow_vcrop & status[14];
+// offsets 0..4 then -4..-1, as a 5-bit two's complement for CROP_OFF
+wire [4:0] crop_off = (status[18:15] < 4'd5) ? {1'b0, status[18:15]}
+                                              : ({1'b0, status[18:15]} + 5'd23);
+wire       vga_de_mix;
 
 // core side: latch each pixel and flip the toggle
 reg        px_tog = 1'b0;
@@ -257,7 +274,25 @@ arcade_video #(.WIDTH(320), .DW(24)) arcade_video (
 	.VBlank(vbl_v),
 	.HSync(hs_v),
 	.VSync(vs_v),
-	.fx(status[5:3])
+	.fx(status[5:3]),
+	.VGA_DE(vga_de_mix)
+);
+
+video_freak video_freak (
+	.CLK_VIDEO(CLK_VIDEO),
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_VS(VGA_VS),
+	.HDMI_WIDTH(HDMI_WIDTH),
+	.HDMI_HEIGHT(HDMI_HEIGHT),
+	.VGA_DE(VGA_DE),
+	.VIDEO_ARX(VIDEO_ARX),
+	.VIDEO_ARY(VIDEO_ARY),
+	.VGA_DE_IN(vga_de_mix),
+	.ARX((!ar) ? ((no_rotate) ? 12'd4 : 12'd3) : {10'd0, ar - 2'd1}),
+	.ARY((!ar) ? ((no_rotate) ? 12'd3 : 12'd4) : 12'd0),
+	.CROP_SIZE(vcrop_216 ? 12'd216 : 12'd0),
+	.CROP_OFF(crop_off),
+	.SCALE({1'b0, scale})
 );
 
 // ---------------------------------------------------------------------------

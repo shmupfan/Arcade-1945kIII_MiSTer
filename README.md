@@ -57,8 +57,13 @@ Alt, Space, Left Shift, 1/2 start, 5/6 coin; player 2 on R/F/D/G, A, S,
 Q, W. P pauses and resumes.
 
 OSD: DIP switches per set (from the MAME driver), aspect ratio,
-orientation for the vertical games, scandoubler options, pause while the
-OSD is open (on by default), and volume (Normal, +6 dB, -6 dB, -12 dB).
+orientation for the vertical games, scandoubler options, HDMI scale
+(Normal, V-Integer, Narrower or Wider HV-Integer), pause while the OSD is
+open (on by default), and volume (Normal, +6 dB, -6 dB, -12 dB). With
+Orientation set to Horizontal, the 224-line 1945k III picture can also be
+cropped to 216 lines (an exact 5x on 1080p) with an adjustable offset;
+the crop is not offered for rotated output (the frame buffer keeps the
+whole picture) or for Flag Rally's 240 lines.
 The board has a volume pot after the sound chips, so the absolute level
 is a choice: Normal puts 1945k III gameplay at about the same loudness
 as other arcade cores, without clipping.
