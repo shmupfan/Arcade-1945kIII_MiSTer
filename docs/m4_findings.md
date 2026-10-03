@@ -133,8 +133,8 @@ Machine byte: 00 (k3 sets) or 01 (flagrall). Buttons: 4 on the k3 sets
 
 ## 6. Compile PC
 
-Reachable 2026-10-02 at buildhost (ssh user@, Windows 11, Quartus
-17.0 Lite). Prepared, no compile started:
+Reachable 2026-10-02 over ssh (Windows 11, Quartus
+17.0 Lite; host set with PC_HOST). Prepared, no compile started:
 - `C:\k3_build` created; build inputs pushed once as a transfer test
   (`tools/pc_build.sh push`, tar over ssh, AppleDouble files excluded:
   macOS tar adds `._*` files unless COPYFILE_DISABLE=1).

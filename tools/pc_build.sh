@@ -13,11 +13,10 @@
 #   tools/pc_build.sh status   tail of compile.log and the timing summary
 #   tools/pc_build.sh fetch    copy the RBF and reports to builds/
 #
-# Env: PC_HOST (default user@buildhost; the PC is DHCP, also
-# buildhost.local).
+# Env: PC_HOST (user@host of the Windows build machine, required).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PC=${PC_HOST:-user@buildhost}
+PC=${PC_HOST:?set PC_HOST to user@host of the build machine}
 SSH=(ssh -o ConnectTimeout=15 -o BatchMode=yes "$PC")
 REV=Arcade-1945kIII
 
