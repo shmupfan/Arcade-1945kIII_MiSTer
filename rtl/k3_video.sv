@@ -159,56 +159,133 @@ module k3_video (
     .clk, .addr_a(i_cpu_addr[8:0]), .d_a(i_cpu_din), .we_a(i_pal_we), .be_a(i_cpu_be),
     .q_a(o_pal_dout), .addr_b(pal_rd_addr), .q_b(pal_q));
 
-  // copy engine addresses (CPU-side RAM port B -> buffer port A)
-  logic [11:0] cp_idx;          // 0..2048, bit 11 = finished
-  logic        cp_run;
-  logic        cp_v1;
+  // ---------------------------------------------------------------- copy
+  // The copy is a snapshot: the buffers must equal the CPU-side RAMs as
+  // they were at the copy edge, as MAME's instant copy (L305-323). The
+  // engine walks the 2,048 words (one of each RAM per clock, about 21 us
+  // at 96 MHz) while the CPU keeps running, and the games do write tile
+  // and sprite RAM inside that window (Flag Rally about once a frame,
+  // m2_findings 4). Copy-before-write: every CPU write to these RAMs is
+  // registered (stage R); if the engine has not read that word yet and it
+  // has not been saved in this copy, the engine pauses for one clock, the
+  // word's old value is read through port B and written into the buffer
+  // (stage S) together with the delayed CPU write, and the word is marked
+  // so the engine skips it later. Marks clear at each copy start. The CPU
+  // never waits; o_copy_busy only reports a copy in progress.
+  logic [11:0] cp_idx;          // next word the engine reads, bit 11 = finished
+  logic        cp_run /* verilator public_flat_rd */;
+  logic        cp_v1 /* verilator public_flat_rd */;
   logic [10:0] cp_a1;
   logic [15:0] bg_live_q, s0_live_q, s1_live_q;
 
-  k3_dpram #(.AW(11), .DW(16)) u_bg_live (
-    .clk, .addr_a(i_cpu_addr[10:0]), .d_a(i_cpu_din), .we_a(i_bg_we), .be_a(i_cpu_be),
-    .q_a(o_bg_dout), .addr_b(cp_idx[10:0]), .q_b(bg_live_q));
-  k3_dpram #(.AW(11), .DW(16)) u_s0_live (
-    .clk, .addr_a(i_cpu_addr[10:0]), .d_a(i_cpu_din), .we_a(i_spr0_we), .be_a(i_cpu_be),
-    .q_a(o_spr0_dout), .addr_b(cp_idx[10:0]), .q_b(s0_live_q));
-  k3_dpram #(.AW(11), .DW(16)) u_s1_live (
-    .clk, .addr_a(i_cpu_addr[10:0]), .d_a(i_cpu_din), .we_a(i_spr1_we), .be_a(i_cpu_be),
-    .q_a(o_spr1_dout), .addr_b(cp_idx[10:0]), .q_b(s1_live_q));
+  // stage R: registered CPU write to tile/sprite RAM
+  logic        wq_v;
+  logic [2:0]  wq_ram;          // {spr1, spr0, bg}
+  logic [10:0] wq_idx;
+  logic [15:0] wq_din;
+  logic [1:0]  wq_be;
+  // stage S: save the old word, then perform the write
+  logic        sv_go;
+  logic [2:0]  sv_ram;
+  logic [10:0] sv_idx;
+  logic [15:0] sv_din;
+  logic [1:0]  sv_be;
+  // words saved during the current copy
+  logic [1023:0] mk_bg;
+  logic [2047:0] mk_s0, mk_s1;
 
-  // buffers: port A written by the copy engine, port B read by the renderer
+  wire wq_marked = (wq_ram[0] && mk_bg[wq_idx[9:0]]) || (wq_ram[1] && mk_s0[wq_idx])
+                || (wq_ram[2] && mk_s1[wq_idx]);
+  wire wq_copied = wq_ram[0] && wq_idx[10];        // tile words 1024+ are not buffered
+  wire save_now  = wq_v && cp_run && ({1'b0, wq_idx} >= cp_idx) && !wq_marked && !wq_copied;
+  wire [10:0] live_b_addr = save_now ? wq_idx : cp_idx[10:0];
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      wq_v  <= 1'b0;
+      sv_go <= 1'b0;
+    end else begin
+      wq_v   <= i_bg_we || i_spr0_we || i_spr1_we;
+      wq_ram <= {i_spr1_we, i_spr0_we, i_bg_we};
+      wq_idx <= i_cpu_addr[10:0];
+      wq_din <= i_cpu_din;
+      wq_be  <= i_cpu_be;
+      sv_go  <= save_now;
+      sv_ram <= wq_ram;
+      sv_idx <= wq_idx;
+      sv_din <= wq_din;
+      sv_be  <= wq_be;
+    end
+  end
+
+  // CPU-side RAM port A: the delayed write (stage R, or S after a save),
+  // otherwise the CPU address for reads
+  wire        wr_r   = wq_v && !save_now;
+  wire [10:0] live_a = sv_go ? sv_idx : (wq_v ? wq_idx : i_cpu_addr[10:0]);
+  wire [15:0] live_d = sv_go ? sv_din : wq_din;
+  wire [1:0]  live_be = sv_go ? sv_be : wq_be;
+  wire [2:0]  live_we = sv_go ? sv_ram : (wr_r ? wq_ram : 3'b000);
+
+  k3_dpram #(.AW(11), .DW(16)) u_bg_live (
+    .clk, .addr_a(live_a), .d_a(live_d), .we_a(live_we[0]), .be_a(live_be),
+    .q_a(o_bg_dout), .addr_b(live_b_addr), .q_b(bg_live_q));
+  k3_dpram #(.AW(11), .DW(16)) u_s0_live (
+    .clk, .addr_a(live_a), .d_a(live_d), .we_a(live_we[1]), .be_a(live_be),
+    .q_a(o_spr0_dout), .addr_b(live_b_addr), .q_b(s0_live_q));
+  k3_dpram #(.AW(11), .DW(16)) u_s1_live (
+    .clk, .addr_a(live_a), .d_a(live_d), .we_a(live_we[2]), .be_a(live_be),
+    .q_a(o_spr1_dout), .addr_b(live_b_addr), .q_b(s1_live_q));
+
+  // buffers: port A written by the copy engine (or a save), port B read by
+  // the renderer
   logic [9:0]  bg_rd_addr;
   logic [10:0] spr_rd_addr;
   logic [15:0] bg_q, s0_q, s1_q;
+  wire  [10:0] buf_a  = sv_go ? sv_idx : cp_a1;
+  wire         we_bgb = sv_go ? sv_ram[0] : (cp_v1 && !cp_a1[10] && !mk_bg[cp_a1[9:0]]);
+  wire         we_s0b = sv_go ? sv_ram[1] : (cp_v1 && !mk_s0[cp_a1]);
+  wire         we_s1b = sv_go ? sv_ram[2] : (cp_v1 && !mk_s1[cp_a1]);
   /* verilator lint_off PINCONNECTEMPTY */
   k3_dpram #(.AW(10), .DW(16)) u_bg_buf (
-    .clk, .addr_a(cp_a1[9:0]), .d_a(bg_live_q), .we_a(cp_v1 && !cp_a1[10]), .be_a(2'b11),
+    .clk, .addr_a(buf_a[9:0]), .d_a(bg_live_q), .we_a(we_bgb), .be_a(2'b11),
     .q_a(), .addr_b(bg_rd_addr), .q_b(bg_q));
   k3_dpram #(.AW(11), .DW(16)) u_s0_buf (
-    .clk, .addr_a(cp_a1), .d_a(s0_live_q), .we_a(cp_v1), .be_a(2'b11),
+    .clk, .addr_a(buf_a), .d_a(s0_live_q), .we_a(we_s0b), .be_a(2'b11),
     .q_a(), .addr_b(spr_rd_addr), .q_b(s0_q));
   k3_dpram #(.AW(11), .DW(16)) u_s1_buf (
-    .clk, .addr_a(cp_a1), .d_a(s1_live_q), .we_a(cp_v1), .be_a(2'b11),
+    .clk, .addr_a(buf_a), .d_a(s1_live_q), .we_a(we_s1b), .be_a(2'b11),
     .q_a(), .addr_b(spr_rd_addr), .q_b(s1_q));
   /* verilator lint_on PINCONNECTEMPTY */
 
-  // Copy: 2,048 words of each sprite RAM and the 1,024 tilemap words, one
-  // word of each per clock (about 21 us at 96 MHz). A new request during a
-  // copy restarts it.
+  // Engine: one word of each RAM per clock, paused for the clock a save
+  // uses port B. A new request during a copy restarts it.
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       cp_run <= 1'b0;
       cp_idx <= 12'd2048;
       cp_v1  <= 1'b0;
+      mk_bg  <= '0;
+      mk_s0  <= '0;
+      mk_s1  <= '0;
     end else begin
-      cp_v1 <= cp_run;
+      cp_v1 <= cp_run && !save_now;
       cp_a1 <= cp_idx[10:0];
       if (i_copy) begin
         cp_run <= 1'b1;
         cp_idx <= '0;
-      end else if (cp_run) begin
-        if (cp_idx == 12'd2047) cp_run <= 1'b0;
-        cp_idx <= cp_idx + 12'd1;
+        mk_bg  <= '0;
+        mk_s0  <= '0;
+        mk_s1  <= '0;
+      end else begin
+        if (cp_run && !save_now) begin
+          if (cp_idx == 12'd2047) cp_run <= 1'b0;
+          cp_idx <= cp_idx + 12'd1;
+        end
+        if (sv_go) begin
+          if (sv_ram[0]) mk_bg[sv_idx[9:0]] <= 1'b1;
+          if (sv_ram[1]) mk_s0[sv_idx] <= 1'b1;
+          if (sv_ram[2]) mk_s1[sv_idx] <= 1'b1;
+        end
       end
     end
   end

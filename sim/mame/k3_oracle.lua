@@ -11,6 +11,10 @@
 --   TOTAL        last frame of the run (default: last dump frame); MAME
 --                exits one frame later so the last dump gets its pixels
 --   NO_SNAP      1 = skip snap.png
+--   OKIRD        1 = log every OKI status read to okird.txt ("frame line
+--                hpos addr data", as sim/m2/tb_sys.cpp +okird)
+--   MAINRAM      1 = also dump main RAM (mainram.bin) and, on the k3 sets,
+--                0x8c0000-0x8c0fff (ram8c.bin) per dump frame (M2)
 --   HEAVY_LOG    1 = log every palette/sprite/bg RAM write row by row
 --                (default: per-frame per-class summaries only)
 --   INPUTS       "frame:PORT:Field name:value;..." input events (value 1 =
@@ -64,6 +68,12 @@ local total = tonumber(os.getenv("TOTAL") or "0")
 if total == 0 then total = maxdump end
 if total == 0 then total = 600 end
 local heavy = os.getenv("HEAVY_LOG") == "1"
+local mainram = os.getenv("MAINRAM") == "1"   -- M2: also dump main RAM (and 0x8c0000) per dump frame
+local okird = os.getenv("OKIRD") == "1"       -- M2 diagnostics: log OKI status reads to okird.txt
+-- M2 diagnostics: TRACE=F0:F1:file traces the main CPU (MAME debugger) from
+-- notifier F0 to F1; needs "-debug -debugger none" on the MAME command line
+local trace_f0, trace_f1, trace_file = (os.getenv("TRACE") or ""):match("^(%d+):(%d+):(.+)$")
+trace_f0, trace_f1 = tonumber(trace_f0), tonumber(trace_f1)
 
 local PARENT = {
   ["1945kiii"] = "k3", ["1945kiiin"] = "k3", ["1945kiiio"] = "k3", ["1945kiiipt"] = "k3",
@@ -131,6 +141,33 @@ local function heavyw(class, addr, data, mask)
 end
 
 _G._k3_taps = {}
+-- M2 diagnostics: WTAP=lo:hi logs every CPU write in [lo, hi] (hex) to
+-- wtap.txt as "frame line hpos addr data mask pc"
+local wtap_lo, wtap_hi = (os.getenv("WTAP") or ""):match("^(%x+):(%x+)$")
+if wtap_lo then
+  local wf = assert(io.open(outdir .. "/wtap.txt", "w"))
+  _G._k3_wf = wf
+  local cpu = m.devices[":maincpu"]
+  _G._k3_wt = main:install_write_tap(tonumber(wtap_lo, 16), tonumber(wtap_hi, 16), "wtap", function(offset, data, mask)
+    local line, hpos = beam()
+    wf:write(string.format("%d %d %d %06x %04x %04x %06x\n", frame, line, hpos, offset, data & 0xffff, mask & 0xffff, cpu.state["PC"].value))
+    wf:flush()
+  end)
+end
+if okird then
+  local okf = assert(io.open(outdir .. "/okird.txt", "w"))
+  _G._k3_okf = okf
+  local function rd(addr)
+    return function(offset, data, mask)
+      local line, hpos = beam()
+      okf:write(string.format("%d %d %d %06x %04x\n", frame, line, hpos, addr, data & 0xffff))
+      okf:flush()
+      return data
+    end
+  end
+  _G._k3_okr1 = main:install_read_tap(0x4c0000, 0x4c0001, "okird1", rd(0x4c0000))
+  _G._k3_okr2 = main:install_read_tap(0x500000, 0x500001, "okird2", rd(0x500000))
+end
 local function tap(lo, hi, name, fn)
   local h = main:install_write_tap(lo, hi, name, function(offset, data, mask)
     fn(offset, data, mask)
@@ -252,6 +289,28 @@ local function dump_frame(n)
   wfile(d .. "/bgram_live.bin", share_bytes(":bgram"))
   wfile(d .. "/spr0_live.bin", share_bytes(":spritera1"))
   wfile(d .. "/spr1_live.bin", share_bytes(":spritera2"))
+  if mainram then
+    -- M2 CPU-state parity: main RAM (0x100000-0x10ffff) and, on the k3
+    -- sets, the 4 KB of 0x8c0000 the boot test uses, as the CPU reads them
+    local parts, char = {}, string.char
+    for a = 0x100000, 0x10fffe, 2 do
+      local v = main:read_direct_u16(a)   -- direct: no taps, no side effects
+      parts[#parts + 1] = char(v >> 8, v & 0xff)
+    end
+    wfile(d .. "/mainram.bin", table.concat(parts))
+    if machine_name == "k3" then
+      parts = {}
+      for a = 0x8c0000, 0x8c0ffe, 2 do
+        local v = main:read_direct_u16(a)
+        parts[#parts + 1] = char(v >> 8, v & 0xff)
+      end
+      wfile(d .. "/ram8c.bin", table.concat(parts))
+    end
+    -- CPU registers at the dump (stack pointer: bytes below it are dead)
+    local cs = m.devices[":maincpu"].state
+    wfile(d .. "/cpu.json", string.format('{"pc": %d, "sp": %d, "sr": %d, "usp": %d}\n',
+      cs["PC"].value, cs["SP"].value, cs["SR"].value, cs["USP"] and cs["USP"].value or -1))
+  end
   local js = {}
   js[#js + 1] = string.format('  "set": "%s"', setname)
   js[#js + 1] = string.format('  "machine": "%s"', machine_name)
@@ -326,6 +385,8 @@ _G._k3_frame = emu.add_machine_frame_notifier(function()
     wfile(pending_pixels .. "/palette_next.bin", share_bytes(":palette"))
     pending_pixels = nil
   end
+  if trace_f0 and frame == trace_f0 then m.debugger:command("trace " .. trace_file .. ",maincpu,noloop") end
+  if trace_f1 and frame == trace_f1 then m.debugger:command("trace off,maincpu") end
   if dump_frames[frame] then dump_frame(frame) end
   local ev = events[frame]
   if ev then

@@ -121,7 +121,7 @@ Decide architecture A or B (4.1) here. Decided: A (line renderer reading the
 buffers live), with a sprite tile flag table so parked entries on the
 blank tile cost nothing (m1_findings 2.2, 6).
 
-### M2. Full-system boot in Verilator
+### M2. Full-system boot in Verilator (DONE, see m2_findings.md)
 
 fx68k + memory map + IRQ4 + control register + buffers + inputs, ROMs
 from the region images. Boot 1945kiii from power-on through the whole
@@ -147,16 +147,26 @@ closed on every clock. First RBF deployed to the MiSTer.
 All six sets on hardware, DIPs, long play, sound by ear; release into the
 shmupfan Distribution database.
 
+## 5a. Decisions
+
+| Date | Decision | By | Basis |
+|---|---|---|---|
+| 2026-10-02 | Video architecture A: line renderer reading the buffers and scroll live (no frame latency) | M1 | m1_findings 2, 6 |
+| 2026-10-02 | Mid-scan buffer copies: keep the LIVE behaviour (no latch at line 0, no frame lag). A copy during the active lines shows from the next line drawn, so a scene-change frame shows the old image above the copy line and the new one below; MAME shows the new image on the whole frame. Chosen as the most plausible PCB behaviour, unconfirmed; research item R3 stays open until frame-by-frame PCB footage of a scene change, or proof that the two KM681000 SRAMs are a sprite framebuffer (R1), settles it | Lee | m1_findings 6, 7 |
+| 2026-10-02 | Standing rule: strive for accuracy and document everything. Every divergence from MAME gets a root cause, its first divergent frame, and which side is believed accurate and why | Lee | m2_findings |
+
 ## 6. Research questions needing PCB evidence
 
 | # | Question | Source |
 |---|---|---|
 | R1 | Are the two KM681000 a double-buffered sprite or screen framebuffer? Does sprite output lag the tilemap by a frame on the PCB? | spec 2, 8.4 |
 | R2 | Sprite budget: cost per entry, whether the limit is per frame or per line, and what happens past it (MAME: list cut at entry 857/1,030) | spec 8.4, L266-279 |
-| R3 | The control "VRAM access flip-flop": copy or bank swap, and what a mid-frame toggle looks like (6 per 12,000 attract frames do it) | spec 9, L341 |
+| R3 | The control "VRAM access flip-flop": copy or bank swap, and what a mid-frame toggle looks like (6 per 12,000 attract frames do it). Core: live (decision 5a), open until PCB footage of a scene change or R1 settles it | spec 9, L341 |
 | R4 | 0x8c0000 RAM: real RAM, a mirror of main RAM, or open bus that happens to pass the boot test | spec 4, L399 |
 | R5 | Blanking/sync position and exact 59.64 Hz on the PCB | spec 5 |
 | R6 | 68000 and OKI clocks on the OPCX1 board (4 MHz crystal) | spec 2, 10 |
+| R7 | M6295 phrase end and status timing: is the last nibble of the stop byte played, and when does the busy bit clear (core: stop byte inclusive, busy clears when the last sample ends, jt6295 patched; m2_findings 5.3). A logic-analyser capture of a status poll across a phrase end would settle it | m2_findings 5.3 |
+| R8 | 68000 interrupt acknowledge: E-clock phase at power-on and the VPA cycle length on the board (core: fx68k; MAME approximates; m2_findings 5.1). Also covers Flag Rally's main-program drift and the routine reorder at attract frame 3,410 (m2_findings 5.4), not yet traced to the instruction | m2_findings 5.1, 5.4 |
 
 ## 7. Risks
 
