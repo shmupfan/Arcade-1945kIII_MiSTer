@@ -363,3 +363,21 @@ MAME's continuation in order and value (580 writes before, 2,248 after).
 - M4: program ROM latency must stay within 12 clocks of the request at
   96 MHz (section 2.3); the board must fill the sprite tile flags before
   reset is released; `i_pause` is available for the OSD pause.
+
+## 8. Re-run with jt6295 patch 2 (2026-10-03, m3_findings 3)
+
+All eight M2 runs re-run on the patched RTL (start to a busy channel
+ignored) and compared with the runs above and with MAME:
+- k3_play, slspirit_attract, flagrall_attract, flagrall_play, 1945kiiio,
+  1945kiiipt: byte-identical to the unpatched runs (every capture file and
+  every I/O write, beam positions included).
+- k3_attract and 1945kiiin: every I/O write equal in order and value; from
+  frame 5,696 (k3_attract) and 7,803 (1945kiiin) some OKI writes land one
+  pixel later than before, and on k3_attract 72 of 37,950 capture files
+  (write logs and one RAM dump) differ by those timings. The patch is the
+  only change; it alters when a channel's busy bit falls after a re-sent
+  start, which the program reads. Against MAME the gate figures are the
+  same as before the patch: all 48,902 / 36,248 writes equal in order and
+  value, beam delta -7..+12 pixels, images 2,023 + 1 live-read (k3_attract)
+  and 299 + 1 (1945kiiin), 0 unexplained, 0 persistent RAM differences.
+Verdict unchanged: PASS.

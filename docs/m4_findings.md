@@ -260,7 +260,7 @@ run on the same netlist produced the figures above, and re-running
 `quartus_asm` alone gave a byte-identical RBF (same md5), so the bitstream
 was not affected.
 
-## 9. M4 board gate (2026-10-03, in progress at this commit)
+## 9. M4 board gate (2026-10-03)
 
 Board harness (`sim/m4/tb_board.cpp`) now writes everything M2's harness
 writes (frames, write logs, palette/tile/sprite/work RAM dumps at each
@@ -280,14 +280,25 @@ frames both have reached.
 RTL under test: b124a9c (timing closure) plus jt6295 patch 2 (m3_findings
 3), the pause wiring and the x8 audio mix (below).
 
-Interim result (all five runs, while still running): board vs M2, both
-with patch 2, byte-identical over every captured file and every I/O write
-including its beam position: k3_attract to frame 1,611 (4,433 files, 6,715
-writes), slspirit_attract to 1,620 (4,455 / 6,757), flagrall_attract to
-1,387 (3,470 / 8,410), k3_play to 568 (1,744 writes). Gate counters 0
-except the expected ROM-area writes (equal to MAME's); program fetch
-latency at most 10 clocks (limit 12); no forced refresh after the first
-vblank; audio check 0 mismatches.
+Result, full length, board vs M2 (both with jt6295 patch 2):
+
+| Run | Frames | Capture files identical | I/O writes identical (beam positions included) | Audio peak |
+|---|---|---|---|---|
+| k3_attract | 12,001 | 37,950 / 37,950 | 48,934 | 11,192 |
+| k3_play | 5,201 | 24,442 / 24,442 | 20,524 | 5,448 |
+| slspirit_attract | 9,001 | 27,214 / 27,214 | 35,912 | 5,240 |
+| flagrall_attract | 9,001 | 24,740 / 24,740 | 54,686 | 21,032 |
+| flagrall_play | 4,801 | 20,220 / 20,220 | 29,165 | 17,928 |
+
+Every run: program fetch latency at most 10 clocks (limit 12), late
+program reads 0, unmapped 0, 0x8c0000 above 4 KB 0, line overruns 0, no
+forced refresh after the first vblank, copy snapshot mismatches 0, audio
+check 0 mismatches and 0 saturated clocks; ROM-area writes equal to MAME's.
+The renderer's worst line is longer on the board (up to 3,535 of 6,144
+clocks, k3_attract) than in M2 (2,894) because graphics reads now come
+through k3_sdram; no pixel changes. Since the board equals M2 byte for
+byte, M2's comparison with MAME and its divergence list (m2_findings 1, 5,
+8) hold for the board unchanged. Verdict: PASS.
 
 Also verified: Flag Rally downloaded with the exact MRA stream (make_mra
 replay of releases/'96 Flag Rally.mra: 0x800000 bytes, identical to the
@@ -315,12 +326,25 @@ from the rotated framebuffer path (FB_EN, 224 lines, 59.64 Hz) to the
 plain path (240 lines, 49.60 Hz), after about a second without syncs (the
 core holds video in reset during the download). screen_rotate updates
 FB_EN on each VSync and sys_top follows FB_EN at runtime (fb_crc), so the
-core side looks right; the shell's video path was not simulated (an emu
-level Verilator harness, sim/m4/shell, still outputs black for every game
-because of Verilator's handling of the framework's inout gamma bus and an
-unconnected freeze input, so it proves nothing yet). Not root-caused.
+core side looks right.
+
+Shell simulation (sim/m4/shell: the whole emu module with the real
+arcade_video, screen_rotate, scandoubler, hq2x and gamma_corr, a stub
+hps_io and PLL, the SDRAM model): Solite Spirits for 120 output frames,
+then Flag Rally downloaded over it with no reset, exactly the MiSTer
+sequence. The emu outputs are correct: FB_EN falls from 1 to 0 on the
+first Flag Rally VSync, VIDEO_ARX/ARY change from 3:4 to 4:3, and VGA_* carry
+the picture (240 lines, 315 hsyncs per frame, mean RGB 112-128 at frames
+50-100, the same as a fresh Flag Rally load). So the black picture is not
+in the core or the emu shell; it is downstream, in sys_top / the HPS
+scaler's handling of a runtime FB_EN 1 -> 0 change together with a
+59.64 -> 49.60 Hz mode change (vsync_adjust=2 on this MiSTer). Not fixed
+in the core. The shell sim needs a simulation-only copy of
+sys/video_mixer.sv (m4/shell/video_mixer_sim.sv: HDMI_FREEZE and the gamma
+enable tied low as Quartus ties them, colour nets hoisted out of an
+unnamed generate block Verilator does not resolve); sys/ is unchanged.
 Trigger: changing between a vertical and a horizontal set without an RBF
 reload. Workaround: load from the menu (reloads the RBF). Tests that would
-split it: the same switch with vsync_adjust=0; the reverse switch; a switch
-between two vertical sets; whether the CRT shows a picture while the HDMI
-screenshot is black.
+narrow it on hardware: the same switch with vsync_adjust=0; the reverse
+switch; whether the analog output shows a picture while HDMI is black.
+If it is the framework's, report it to MiSTer-devel with this trigger.
