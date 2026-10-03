@@ -196,9 +196,10 @@ at 7,575 Hz, oracle `writes.csv`; `mame/out/cont_*`).
 - The core with the same inputs (M6295 at MAME's rate, the `mamefix`
   build): OKI commands equal MAME's in order, value and frame (58 of 58)
   to frame 1,491, and per-second levels match MAME's within about 1%
-  for the first 25 s on both sets. A run to frame 3,800 was still going
-  when this was written (the Mac is shared with other simulations); the
-  M2 gate already showed every OKI write equal to MAME's over 5,201
+  for the first 25 s on both sets. A run to frame 3,800 was stopped at
+  its two-hour limit before reaching the countdown (the Mac was shared
+  with other simulations), so the countdown itself is not covered by a
+  core run; the M2 gate already showed every OKI write equal to MAME's over 5,201
   frames of gameplay with coin, start, deaths and continues.
 
 Verdict: the silent countdown is the game's own behaviour in MAME, and
