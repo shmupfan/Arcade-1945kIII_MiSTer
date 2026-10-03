@@ -31,10 +31,10 @@ Local changes:
   simulation-only Verilator annotations, neither changing behaviour, plus
   three behaviour fixes that match MAME's M6295 model: a phrase plays
   through the second nibble of its stop byte; a start command to a
-  channel that is still playing is ignored; and the busy flags follow the
-  committed channel state, so a stop followed by a start is not lost
-  (`rtl/vendor/jt6295/PROVENANCE.md`). The same patched jt6295 is used in
-  the shmupfan Tecmo 16 core.
+  channel that is still playing is ignored; and the busy status is timed
+  as the MSM6295 datasheet describes, a start never cancels a stop, and
+  the decoder resets on every start (`rtl/vendor/jt6295/PROVENANCE.md`). The same patched jt6295 is used in
+  the shmupfan Tecmo 16 and Dooyong cores and in Hyper Duel.
 
 The sound comes from Jose Tejada's jt6295. If you enjoy this core,
 consider supporting him: https://www.patreon.com/jotego
