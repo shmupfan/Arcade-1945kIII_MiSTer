@@ -1,0 +1,48 @@
+<misterromdescription>
+    <name>1945k III (older, OPCX1 PCB)</name>
+    <setname>1945kiiio</setname>
+    <rbf>1945kiii</rbf>
+    <mameversion>0289</mameversion>
+    <year>1999</year>
+    <manufacturer>Oriental Soft</manufacturer>
+    <players>2</players>
+    <joystick>8-way</joystick>
+    <rotation>vertical (ccw)</rotation>
+    <switches default="EF,FF">
+        <dip name="Coin A" bits="0,2" ids="1C/1C (2),1C/1C (3),1C/1C (4),Free Play,1C/2C,3C/1C,2C/1C,1C/1C" />
+        <dip name="Difficulty" bits="3,4" ids="Easy,Normal,Hard,Hardest" />
+        <dip name="Lives" bits="5,6" ids="5,4,2,3" />
+        <dip name="Service Mode" bits="7" ids="On,Off" />
+    </switches>
+    <buttons names="Button 1,Button 2,Button 3,Button 4,Start,Coin" default="A,B,X,Y,Start,Select" />
+    <rom index="1">
+        <part>00</part>
+    </rom>
+    <rom index="0" zip="1945kiiio.zip|1945kiii.zip" md5="none">
+        <interleave output="16">
+            <part name="4.u35" crc="fd177664" offset="0x0" length="0x80000" map="01" />
+            <part name="3.u34" crc="5515baa0" offset="0x0" length="0x80000" map="10" />
+        </interleave>
+        <interleave output="32">
+            <part name="9.u5" crc="be0f432e" offset="0x0" length="0x80000" map="0001" />
+            <part name="10.u6" crc="cf9127b2" offset="0x0" length="0x80000" map="0010" />
+            <part name="11.u7" crc="644ee8cc" offset="0x0" length="0x80000" map="0100" />
+            <part name="12.u8" crc="0900c208" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <interleave output="32">
+            <part name="13.u58" crc="8ea9c6be" offset="0x0" length="0x80000" map="0001" />
+            <part name="14.u59" crc="10c18fb4" offset="0x0" length="0x80000" map="0010" />
+            <part name="15.u60" crc="86ab6c7c" offset="0x0" length="0x80000" map="0100" />
+            <part name="16.u61" crc="ff419080" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <interleave output="32">
+            <part name="5.u102" crc="91b70a6b" offset="0x0" length="0x80000" map="0001" />
+            <part name="6.u103" crc="7b5bfb85" offset="0x0" length="0x80000" map="0010" />
+            <part name="7.u104" crc="cdafcedf" offset="0x0" length="0x80000" map="0100" />
+            <part name="8.u105" crc="2c3895d5" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <part name="s13.su4" crc="d45aec3b" offset="0x0" length="0x80000" />
+        <part repeat="0x80000">00</part>
+        <part name="s21.su5" crc="9d96fd55" offset="0x0" length="0x80000" />
+    </rom>
+</misterromdescription>

@@ -1,0 +1,47 @@
+<misterromdescription>
+    <name>1945k III (Promat license, OPCX1 PCB)</name>
+    <setname>1945kiiipt</setname>
+    <rbf>1945kiii</rbf>
+    <mameversion>0289</mameversion>
+    <year>1999</year>
+    <manufacturer>Promat</manufacturer>
+    <players>2</players>
+    <joystick>8-way</joystick>
+    <rotation>vertical (ccw)</rotation>
+    <switches default="EF,FF">
+        <dip name="Coin A" bits="0,2" ids="1C/1C (2),1C/1C (3),1C/1C (4),Free Play,1C/2C,3C/1C,2C/1C,1C/1C" />
+        <dip name="Difficulty" bits="3,4" ids="Easy,Normal,Hard,Hardest" />
+        <dip name="Service Mode" bits="7" ids="On,Off" />
+    </switches>
+    <buttons names="Button 1,Button 2,Button 3,Button 4,Start,Coin" default="A,B,X,Y,Start,Select" />
+    <rom index="1">
+        <part>00</part>
+    </rom>
+    <rom index="0" zip="1945kiiipt.zip|1945kiii.zip" md5="none">
+        <interleave output="16">
+            <part name="u35" crc="4381341d" offset="0x0" length="0x80000" map="01" />
+            <part name="u34" crc="d4efcdf4" offset="0x0" length="0x80000" map="10" />
+        </interleave>
+        <interleave output="32">
+            <part name="u5" crc="4742aa38" offset="0x0" length="0x80000" map="0001" />
+            <part name="u6" crc="c137fb33" offset="0x0" length="0x80000" map="0010" />
+            <part name="u7" crc="d0593a03" offset="0x0" length="0x80000" map="0100" />
+            <part name="u8" crc="baa9eeb1" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <interleave output="32">
+            <part name="u58" crc="eb586bd6" offset="0x0" length="0x80000" map="0001" />
+            <part name="u59" crc="abc8b869" offset="0x0" length="0x80000" map="0010" />
+            <part name="u60" crc="31f9b034" offset="0x0" length="0x80000" map="0100" />
+            <part name="u61" crc="f13e609b" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <interleave output="32">
+            <part name="u102" crc="ddca369b" offset="0x0" length="0x80000" map="0001" />
+            <part name="u103" crc="32f58186" offset="0x0" length="0x80000" map="0010" />
+            <part name="u104" crc="2031c42e" offset="0x0" length="0x80000" map="0100" />
+            <part name="u105" crc="8428b693" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <part name="su4" crc="d45aec3b" offset="0x0" length="0x80000" />
+        <part repeat="0x80000">00</part>
+        <part name="su5" crc="9d96fd55" offset="0x0" length="0x80000" />
+    </rom>
+</misterromdescription>

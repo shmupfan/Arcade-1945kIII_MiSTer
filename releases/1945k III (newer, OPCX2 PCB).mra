@@ -1,0 +1,37 @@
+<misterromdescription>
+    <name>1945k III (newer, OPCX2 PCB)</name>
+    <setname>1945kiii</setname>
+    <rbf>1945kiii</rbf>
+    <mameversion>0289</mameversion>
+    <year>2000</year>
+    <manufacturer>Oriental Soft</manufacturer>
+    <players>2</players>
+    <joystick>8-way</joystick>
+    <rotation>vertical (ccw)</rotation>
+    <switches default="EF,FE">
+        <dip name="Coin A" bits="0,2" ids="1C/3C,4C/1C,5C/1C,Free Play,1C/2C,3C/1C,2C/1C,1C/1C" />
+        <dip name="Difficulty" bits="3,4" ids="Easy,Normal,Hard,Hardest" />
+        <dip name="Lives" bits="5,6" ids="5,4,2,3" />
+        <dip name="Service Mode" bits="7" ids="On,Off" />
+        <dip name="Demo Sounds" bits="8" ids="On,Off" />
+        <dip name="Allow Continue" bits="9" ids="No,Yes" />
+    </switches>
+    <buttons names="Button 1,Button 2,Button 3,Button 4,Start,Coin" default="A,B,X,Y,Start,Select" />
+    <rom index="1">
+        <part>00</part>
+    </rom>
+    <rom index="0" zip="1945kiii.zip" md5="none">
+        <interleave output="16">
+            <part name="prg-2.u52" crc="ce09b98c" offset="0x0" length="0x80000" map="01" />
+            <part name="prg-1.u51" crc="6b345f27" offset="0x0" length="0x80000" map="10" />
+        </interleave>
+        <interleave output="32">
+            <part name="m16m-1.u62" crc="0b9a6474" offset="0x0" length="0x200000" map="0021" />
+            <part name="m16m-2.u63" crc="368a8c2e" offset="0x0" length="0x200000" map="2100" />
+        </interleave>
+        <part name="m16m-3.u61" crc="32fc80dd" offset="0x0" length="0x200000" />
+        <part name="snd-1.su7" crc="bbb7f0ff" offset="0x0" length="0x80000" />
+        <part repeat="0x80000">00</part>
+        <part name="snd-2.su4" crc="47e3952e" offset="0x0" length="0x80000" />
+    </rom>
+</misterromdescription>

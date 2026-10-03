@@ -8,3 +8,11 @@ sim/nanorom.mem
 sim/m2/okitest/obj*/
 sim/m2/okitest/hdl_p/
 sim/m2/okitest/*.log
+builds/
+# Quartus (builds run on the compile PC)
+output_files/
+db/
+incremental_db/
+*.qws
+*.rpt
+*.summary

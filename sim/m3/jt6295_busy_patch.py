@@ -8,6 +8,9 @@ import sys
 
 p = sys.argv[1]
 s = open(p).read()
+if "start_ok" in s:
+    print(f"{p}: already patched")
+    sys.exit(0)
 subs = [
     ("assign update   = up_start | up_stop;",
      "// A start for a channel that is still playing is ignored (MSM6295; MAME\n"

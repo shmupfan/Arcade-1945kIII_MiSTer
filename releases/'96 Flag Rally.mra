@@ -1,0 +1,51 @@
+<misterromdescription>
+    <name>'96 Flag Rally</name>
+    <setname>flagrall</setname>
+    <rbf>1945kiii</rbf>
+    <mameversion>0289</mameversion>
+    <year>1996</year>
+    <manufacturer>Promat?</manufacturer>
+    <players>1</players>
+    <joystick>8-way</joystick>
+    <rotation>horizontal</rotation>
+    <switches default="EF,FF">
+        <dip name="Coinage" bits="0,1" ids="3C/1C,2C/1C,1C/2C,1C/1C" />
+        <dip name="Demo Sounds" bits="4" ids="On,Off" />
+        <dip name="Dip Control" bits="5" ids="On,Off" />
+        <dip name="Picture Test" bits="7" ids="On,Off" />
+        <dip name="Lives" bits="8,9" ids="5,2,1,3" />
+        <dip name="Bonus Type" bits="10" ids="1,0" />
+        <dip name="Difficulty" bits="12,13" ids="Very Hard,Hard,Easy,Normal" />
+        <dip name="Free Play" bits="15" ids="On,Off" />
+    </switches>
+    <buttons names="Button 1,Button 2,-,-,Start,Coin" default="A,B,X,Y,Start,Select" />
+    <rom index="1">
+        <part>01</part>
+    </rom>
+    <rom index="0" zip="flagrall.zip" md5="none">
+        <interleave output="16">
+            <part name="12_u35.bin" crc="373b71a5" offset="0x0" length="0x40000" map="01" />
+            <part name="11_u34.bin" crc="24dd439d" offset="0x0" length="0x40000" map="10" />
+        </interleave>
+        <part repeat="0x80000">00</part>
+        <interleave output="32">
+            <part name="1_u5.bin" crc="9377704b" offset="0x0" length="0x80000" map="0001" />
+            <part name="5_u6.bin" crc="1ac0bd0c" offset="0x0" length="0x80000" map="0010" />
+            <part name="2_u7.bin" crc="5f6db2b3" offset="0x0" length="0x80000" map="0100" />
+            <part name="6_u8.bin" crc="79e4643c" offset="0x0" length="0x80000" map="1000" />
+        </interleave>
+        <interleave output="32">
+            <part name="3_u58.bin" crc="c913df7d" offset="0x0" length="0x40000" map="0001" />
+            <part name="4_u59.bin" crc="cb192384" offset="0x0" length="0x40000" map="0010" />
+            <part name="7_u60.bin" crc="f187a7bf" offset="0x0" length="0x40000" map="0100" />
+            <part name="8_u61.bin" crc="b73fa441" offset="0x0" length="0x40000" map="1000" />
+        </interleave>
+        <part repeat="0x100000">00</part>
+        <part name="10_u102.bin" crc="b1fd3279" offset="0x0" length="0x80000" />
+        <part name="9_u103.bin" crc="01e6d654" offset="0x0" length="0x80000" />
+        <part repeat="0x100000">00</part>
+        <part name="13_su4.bin" crc="7b0630b3" offset="0x0" length="0x80000" />
+        <part name="14_su6.bin" crc="593b038f" offset="0x0" length="0x40000" />
+        <part repeat="0x40000">00</part>
+    </rom>
+</misterromdescription>
