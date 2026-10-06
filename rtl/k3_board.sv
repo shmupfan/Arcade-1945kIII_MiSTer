@@ -39,6 +39,9 @@ module k3_board #(
     input  logic [15:0] i_inputs,
     input  logic [15:0] i_system,
     input  logic        i_pause,        // OSD / key pause (k3_sys holds CPU and OKI enables)
+    input  logic [3:0]  i_crt_h,        // OSD CRT position (2 px steps) and flip
+    input  logic [2:0]  i_crt_v,
+    input  logic        i_osd_flip,
     input  logic [1:0]  i_volume,       // OSD volume: 0 normal, 1 +6 dB, 2 -6 dB, 3 -12 dB
 
     output logic [7:0]  o_r,
@@ -170,6 +173,7 @@ module k3_board #(
   k3_sys #(.CLK_HZ(CLK_HZ), .PIX_NUM(PIX_NUM), .PIX_DEN(PIX_DEN), .FREE_TIMING(1'b1)) u_sys (
     .clk(clk), .rst_n(core_rst_n), .i_pwr_rst_n(i_sdram_rst_n), .o_run(core_run),
     .i_flagrall(machine), .i_pause(i_pause),
+    .i_crt_h(i_crt_h), .i_crt_v(i_crt_v), .i_osd_flip(i_osd_flip),
     .o_prom_req(prom_req), .o_prom_addr(prom_addr), .i_prom_data(prom_data), .i_prom_ok(prom_ok),
     .o_oki1_addr(oki1_addr), .i_oki1_data(oki1_data), .i_oki1_ok(oki1_ok),
     .o_oki2_addr(oki2_addr), .i_oki2_data(oki2_data), .i_oki2_ok(oki2_ok),

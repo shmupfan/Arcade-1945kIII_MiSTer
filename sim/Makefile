@@ -150,15 +150,24 @@ M2RTL := $(wildcard ../rtl/vendor/jt6295/hdl/*.v) $(FX68K)/fx68k.sv $(FX68K)/fx6
 M2DIR ?= build/m2/obj_dir
 M2BIN := $(M2DIR)/Vk3_sys
 M2OUT := build/m2/gate
+M2CLK ?= -GCLK_HZ=96000000 -GPIX_NUM=9 -GPIX_DEN=128
 
 $(M2BIN): $(M2RTL) m2/tb_sys.cpp
+	mkdir -p $(M2DIR)
 	$(VERILATOR) --cc --exe --build -O3 -Wno-fatal -Wno-lint -Wno-style --x-assign fast --x-initial fast \
 	  --top-module k3_sys --Mdir $(M2DIR) -j 0 \
-	  -GCLK_HZ=96000000 -GPIX_NUM=9 -GPIX_DEN=128 $(M2PARAMS) \
+	  $(M2CLK) $(M2PARAMS) \
 	  -CFLAGS -O2 $(M2RTL) m2/tb_sys.cpp
 	cp -f $(FX68K)/microrom.mem $(FX68K)/nanorom.mem .   # fx68k $$readmemb, relative to the run directory
 
 m2-build: $(M2BIN)
+
+# m2-int: the MiSTer clock (m4_findings 10): 94.5 MHz, pixel enable 1/14
+# (exactly 14 clocks a pixel for direct video), 68000 and OKI enables
+# fractional. Same boot runs and comparison as m2-boot.
+M2ICLK := -GCLK_HZ=94500000 -GPIX_NUM=1 -GPIX_DEN=14
+m2-int:
+	$(MAKE) m2-boot M2DIR=build/m2_int/obj_dir M2OUT=build/m2_int/gate M2CLK="$(M2ICLK)"
 
 # MAME runs with work RAM dumps (k3_oracle.lua MAINRAM=1), same frames and
 # inputs as the M0 captures, no snapshots: deterministic from power-on, so

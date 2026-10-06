@@ -64,6 +64,16 @@ Orientation set to Horizontal, the 224-line 1945k III picture can also be
 cropped to 216 lines (an exact 5x on 1080p) with an adjustable offset;
 the crop is not offered for rotated output (the frame buffer keeps the
 whole picture) or for Flag Rally's 240 lines.
+
+CRT options: Flip Screen (the vertical sets; not offered for Flag Rally)
+turns the picture 180 degrees in the core (the board has no flip screen of
+its own), so a CRT mounted for ROT90 games can show these ROT270 games the
+right way up. CRT H Position (2 pixels a
+step, -16 to +14) and CRT V Position (1 line a step, -4 to +3) move the
+picture on a CRT by moving the sync pulses; the picture area and the
+game's timing do not change. Vertical sync starts and ends on a
+horizontal sync pulse, so composite sync (SCART) has no stray pulse above
+the picture.
 The board has a volume pot after the sound chips, so the absolute level
 is a choice: Normal puts 1945k III gameplay at about the same loudness
 as other arcade cores, without clipping.
@@ -107,7 +117,9 @@ loading (docs/m4_findings.md 9.1).
 - Line renderer: one 32x32 map of 16x16 8bpp tiles with scroll, sprites
   with the MAME per-frame entry budget, read live as the beam draws
 - Two M6295 with bank switching
-- 96 MHz system clock, 6.75 MHz pixel clock: 432 x 262 at 59.64 Hz
+- 94.5 MHz system clock, 6.75 MHz pixel clock (exactly 14 clocks, 7 of
+  the 47.25 MHz video clock, so the picture is stable on direct video):
+  432 x 262 at 59.64 Hz
   (1945k III, Solite Spirits) or 432 x 315 at 49.60 Hz (Flag Rally)
 
 ## Layout

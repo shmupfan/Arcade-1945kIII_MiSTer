@@ -48,7 +48,7 @@ module tb_board #(
     .i_ioctl_download(i_ioctl_download), .i_ioctl_wr(i_ioctl_wr),
     .i_ioctl_addr(i_ioctl_addr), .i_ioctl_dout(i_ioctl_dout),
     .i_ioctl_index(i_ioctl_index), .o_ioctl_wait(o_ioctl_wait),
-    .i_inputs(i_inputs), .i_system(i_system), .i_pause(i_pause), .i_volume(i_volume),
+    .i_inputs(i_inputs), .i_system(i_system), .i_pause(i_pause), .i_volume(i_volume), .i_crt_h(4'd0), .i_crt_v(3'd0), .i_osd_flip(1'b0),
     .o_r(o_r), .o_g(o_g), .o_b(o_b), .o_hblank(hb), .o_vblank(vb),
     .o_hs(hs), .o_vs(vs), .o_de(o_de), .o_ce_pix(o_ce_pix),
     .o_audio(o_audio), .o_flagrall(o_flagrall), .o_pen(o_pen), .o_vbl_irq(o_vbl_irq),

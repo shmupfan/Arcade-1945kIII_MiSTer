@@ -426,3 +426,53 @@ With the 20261004 release (sync runs during ROM download and reset), loading
 title and attract on the MiSTer (screenshots 25 s and 50 s after load_core),
 where the earlier builds showed black. The black picture was the scaler
 losing sync while the core's video timing was frozen during the download.
+
+## 10. Integer pixel clock for direct video: 94.5 MHz (2026-10-05)
+
+The first release ran the core at 96 MHz with a fractional pixel enable
+(9/128, 6.75 MHz): 7.11 clocks of the 48 MHz video clock per pixel, so
+pixels were 7 or 8 clocks wide. Direct video (direct_video=1) holds each
+pixel on the DAC until the next CE_PIXEL, which wobbles (reported on the
+Tecmo 16 core, which had the same fault). The PLL now gives 94.5 MHz
+(14 x 6.75 MHz), its -90 degree SDRAM copy (-2646 ps) and 47.25 MHz
+(7 x 6.75 MHz) for the video path; the pixel enable is 1/14. The 68000
+(2 x 16 MHz) and OKI (1 MHz) enables were already exact fractions of any
+system clock, so the CPU still runs 268,288 clocks a frame; the 68000
+phases are now 2 or 3 clocks apart. PROM_LIMIT took the floor before the
+2.5 x and gave 9 at 94.5 MHz; it is now (CLK_HZ x 2.5) / 16 MHz - 3, which
+keeps 12 at 96 MHz and 7 at 64 MHz and gives 11 at 94.5 MHz (the SDRAM
+controller answers in 8-9). SDRAM refresh and init follow CLK_HZ.
+
+| Check (make m2-int: 94.5 MHz, 1/14) | Result |
+|---|---|
+| All 8 M2 boot runs against MAME | every figure equal to the 96 MHz gate (m2_findings 1): I/O streams, images (k3_attract 2,023 / 1 / 0 ...), RAM; flagrall_attract still diverges at frame 1,505 (MAME's OKI rate, m2_findings 5.3); late program reads 0 in every run |
+| Quartus (clock change only) | every clock meets timing: core +0.982 ns, video +3.122 ns |
+
+## 11. CRT sync, CRT position, Flip Screen (2026-10-05)
+
+**Vertical sync.** VS changed with the line counter at pixel 0, 80 pixels
+after an hsync. MiSTer's composite sync is HS XOR VS, so each VS edge
+was a stray sync edge between two hsyncs, which pulls a CRT's line
+oscillator above the picture (reported on Tecmo 16). VS now starts and
+ends on an hsync leading edge.
+
+**CRT position.** OSD CRT H Position (status[27:24], 2 px a step, -16 to
++14) and CRT V Position (status[30:28], 1 line a step, -4 to +3) move the
+sync pulses only, taken at vblank start: HS within pixels 336-397 (hblank
+320-431), VS within lines 229-237 (1945k III / Solite Spirits, vblank
+224-261) or 245-253 (Flag Rally, vblank 240-314).
+
+**Flip Screen.** The board has no flip screen (spec 4), so OSD status[31]
+turns the picture 180 degrees in the renderer: output line L is built
+from source line v_act - 1 - L (tile row and sprite hit test) and the
+line buffer is read right to left. Taken at vblank start. Vertical sets
+only: hidden (menu mask bit 3 = Flag Rally) and forced off for Flag Rally
+(Lee 2026-10-05).
+
+| Check | Result |
+|---|---|
+| sim/m4/sync/tb_sync.cpp, k3_video 432 x 262, all 16 x 8 offsets | 128 / 128 pass |
+| 1945kiii attract, 300 frames, 94.5 MHz, flip off | equal to MAME as before: 852 / 852 writes, 37 / 37 images, RAM equal |
+| same run, flip on | 75 / 75 images equal the normal run turned 180 degrees |
+| Shell lint | 0 errors |
+

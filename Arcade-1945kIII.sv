@@ -9,14 +9,26 @@
 //  games (ROT270) are rotated through the framework's screen_rotate (DDR3
 //  frame buffer, MISTER_FB=1).
 //
-//  Clocks (pll.v, as Dooyong): 96 MHz system, a -90 degree copy for
-//  SDRAM_CLK, and 48 MHz for the video path (arcade_video's HQ2x does not
-//  close timing at 96 MHz; Dooyong m4_findings 4). The core's pixel enable
-//  is fractional (6.75 MHz = 96 MHz x 9/128, spec 5), so each pixel is
-//  handed to the 48 MHz domain with a toggle: the core side latches the
-//  pixel and flips the toggle on its enable, the video side registers the
-//  toggle and makes a one-clock enable from its change. Pixels are at
-//  least 14 core clocks apart, so the latched pixel is long stable.
+//  Clocks (pll.v): 94.5 MHz system (14 x the 6.75 MHz pixel clock, spec 5),
+//  a -90 degree copy for SDRAM_CLK, and 47.25 MHz (7 x 6.75) for the video
+//  path (arcade_video's HQ2x does not close timing at 96 MHz; Dooyong
+//  m4_findings 4). Direct video (direct_video=1) sends CLK_VIDEO to the HDMI
+//  DAC and holds each pixel until the next CE_PIXEL, so the pixel clock must
+//  be a whole fraction of CLK_VIDEO: the first release ran 96 / 48 MHz with
+//  a fractional pixel enable (7.11 clocks of 48 MHz per pixel), pixels of 7
+//  and 8 clocks that wobble on direct video (m4_findings 10). The 68000 and
+//  OKI enables are exact fractions of any system clock, so the CPU still
+//  runs 268,288 clocks a frame. Each pixel is handed to the video domain
+//  with a toggle: the core side latches the pixel and flips the toggle on
+//  its enable, the video side registers the toggle and makes a one-clock
+//  enable from its change. Pixels are exactly 14 core clocks apart, so the
+//  video side gets one enable every 7 clocks.
+//
+//  CRT options (m4_findings 11): CRT H/V Position move the sync pulses (the
+//  picture area and the game's timing are unchanged); Flip Screen turns the
+//  picture 180 degrees in the renderer, so it works on a CRT (the board has
+//  no flip screen of its own). Flip is for the vertical sets only: hidden
+//  and off for Flag Rally.
 //============================================================================
 
 module emu
@@ -42,12 +54,13 @@ assign AUDIO_MIX = 2'b00;
 // clocks
 // ---------------------------------------------------------------------------
 wire clk_sys, clk_sdram, clk_vid, pll_locked;
+wire       flagrall;   // from the MRA (k3_board); Flag Rally is the horizontal set
 pll pll (
 	.refclk(CLK_50M),
 	.rst(1'b0),
-	.outclk_0(clk_sys),      // 96 MHz
-	.outclk_1(clk_sdram),    // 96 MHz, -90 degrees
-	.outclk_2(clk_vid),      // 48 MHz, phase aligned with clk_sys
+	.outclk_0(clk_sys),      // 94.5 MHz
+	.outclk_1(clk_sdram),    // 94.5 MHz, -90 degrees
+	.outclk_2(clk_vid),      // 47.25 MHz, phase aligned with clk_sys
 	.locked(pll_locked)
 );
 assign SDRAM_CLK = clk_sdram;
@@ -62,6 +75,9 @@ localparam CONF_STR = {
 	"H0OMN,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"H0O2,Orientation,Vertical,Horizontal;",
 	"O35,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"H3O[31],Flip Screen,Off,On;",
+	"O[27:24],CRT H Position,0,+2,+4,+6,+8,+10,+12,+14,-16,-14,-12,-10,-8,-6,-4,-2;",
+	"O[30:28],CRT V Position,0,+1,+2,+3,-4,-3,-2,-1;",
 	"H0O[13:12],Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"d1O[14],Vertical Crop,Disabled,216p(5x);",
 	"d2O[18:15],Crop Offset,0,1,2,3,4,-4,-3,-2,-1;",
@@ -101,7 +117,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io (
 	.gamma_bus(gamma_bus),
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({13'd0, vcrop_216, allow_vcrop, direct_video}),
+	.status_menumask({12'd0, flagrall, vcrop_216, allow_vcrop, direct_video}),
 	.forced_scandoubler(forced_scandoubler),
 	.direct_video(direct_video),
 	.video_rotated(video_rotated),
@@ -176,7 +192,6 @@ wire [9:0] joy1 = joystick_1[9:0] | {k_co2, k_st2, k2_b4, k2_b3, k2_b2, k2_b1, k
 //           bit 2 Start 1, bit 3 Start 2 (unknown on flagrall), rest 1
 // The service switch is DIP SW1:8 on the k3 sets (MRA "Service Mode").
 // ---------------------------------------------------------------------------
-wire       flagrall;
 wire [7:0] p1n = ~{joy0[7:4], joy0[0], joy0[1], joy0[2], joy0[3]};   // B4..B1, R, L, D, U
 wire [7:0] p2n = ~{joy1[7:4], joy1[0], joy1[1], joy1[2], joy1[3]};
 wire [15:0] inputs = flagrall ? {10'h3FF, p1n[5:0]} : {p2n, p1n};
@@ -195,11 +210,12 @@ wire [7:0] r, g, b;
 wire       hbl, vbl, hs, vs, de, ce_pix;
 wire signed [15:0] audio;
 
-k3_board #(.CLK_HZ(96000000), .PIX_NUM(9), .PIX_DEN(128)) board (
+k3_board #(.CLK_HZ(94500000), .PIX_NUM(1), .PIX_DEN(14)) board (
 	.clk(clk_sys), .i_sdram_rst_n(pll_locked), .i_reset(reset),
 	.i_ioctl_download(ioctl_download), .i_ioctl_wr(ioctl_wr), .i_ioctl_addr(ioctl_addr),
 	.i_ioctl_dout(ioctl_dout), .i_ioctl_index(ioctl_index), .o_ioctl_wait(ioctl_wait),
 	.i_inputs(inputs), .i_system(system), .i_pause(pause), .i_volume(status[8:7]),
+	.i_crt_h(status[27:24]), .i_crt_v(status[30:28]), .i_osd_flip(status[31] & ~flagrall),
 	.o_r(r), .o_g(g), .o_b(b), .o_hblank(hbl), .o_vblank(vbl), .o_hs(hs), .o_vs(vs),
 	.o_de(de), .o_ce_pix(ce_pix), .o_audio(audio), .o_flagrall(flagrall),
 	.o_pen(), .o_vbl_irq(),

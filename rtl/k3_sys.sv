@@ -5,11 +5,12 @@
 // Spec sections are docs/k3_system_spec.md; driver lines "Lnnn" are
 // reference/mame/1945kiii.cpp.
 //
-// Clocks: one system clock (96 MHz on hardware; the simulation may run it
+// Clocks: one system clock (94.5 MHz on hardware; the simulation may run it
 // lower, see sim/Makefile M2). Every enable is fractional, so the ratios
 // match MAME exactly at any system clock that the pixel ratio divides:
 //   - pixel enable PIX_NUM / PIX_DEN of the clock: 6.75 MHz = 27 MHz / 4
-//     (L667, L689); 9/128 at 96 MHz, 27/256 at 64 MHz
+//     (L667, L689); 1/14 at 94.5 MHz (the MiSTer clock, a whole number of
+//     clocks per pixel for direct video), 9/128 at 96 MHz, 27/256 at 64 MHz
 //   - 68000 two-phase enables at 2 x 16 MHz (MASTER_CLOCK, L655, L660)
 //   - M6295 enables at 1 MHz (MASTER_CLOCK / 16, L675, L686)
 // 268,288 CPU clocks per k3 frame, as MAME.
@@ -89,6 +90,9 @@ module k3_sys #(
     output logic        o_run,          // core out of reset (effective)
     input  logic        i_flagrall,
     input  logic        i_pause,        // holds the 68000 and the OKIs; video keeps scanning
+    input  logic [3:0]  i_crt_h,        // OSD CRT position and flip (k3_video)
+    input  logic [2:0]  i_crt_v,
+    input  logic        i_osd_flip,
 
     // program ROM (1 MB, 16-bit words, high byte = even address)
     output logic        o_prom_req,
@@ -292,9 +296,11 @@ module k3_sys #(
   // last fx68k data capture of a read: AS + 15 clocks at 96 MHz (2.5 CPU
   // clocks). prom_cnt counts from the first MB_ROM clock (AS + 1); data that
   // arrives with ok at count k is in the latch from AS + k + 2, so k must be
-  // at most 12 at 96 MHz (7 at 64 MHz). One clock of the 15 is kept spare
-  // for the exact capture edge.
-  localparam int PROM_LIMIT = (CLK_HZ / 16000000) * 5 / 2 - 3;
+  // at most 12 at 96 MHz (7 at 64 MHz, 11 at 94.5 MHz, where the phases are
+  // 2 or 3 clocks apart and 2.5 CPU clocks can be 14). One clock is kept
+  // spare for the exact capture edge. (The floor is taken after the 2.5x:
+  // the earlier (CLK_HZ / 16 MHz) * 5 / 2 gave 9 at 94.5 MHz.)
+  localparam int PROM_LIMIT = (CLK_HZ / 100 * 5 / 2) / 160000 - 3;
   logic [7:0]  prom_cnt;
   logic        prom_got;
   mbst_t       mbst;
@@ -416,7 +422,7 @@ module k3_sys #(
   // ================================================================ video
   logic [15:0] pal_q, bg_q, s0_q, s1_q;
   k3_video #(.FREE_TIMING(FREE_TIMING)) u_video (
-    .clk, .rst_n(vrst_n), .ce_pix, .i_flagrall,
+    .clk, .rst_n(vrst_n), .ce_pix, .i_flagrall, .i_crt_h, .i_crt_v, .i_osd_flip,
     .i_tim_rst(tim_rst), .o_tim_evt(tim_evt),
     .i_cpu_addr(m_a[11:1]), .i_cpu_din(m_dout), .i_cpu_be(m_be),
     .i_pal_we(m_wstb && s_pal), .i_bg_we(m_wstb && s_bg),

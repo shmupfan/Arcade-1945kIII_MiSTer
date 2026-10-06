@@ -162,6 +162,10 @@ int main(int argc, char **argv) {
         if (!ps.empty()) sscanf(ps.c_str(), "%ld:%ld", &pause_f, &pause_n);
     }
     top->i_pause = 0;
+    // OSD CRT position and flip (m4_findings 11), default off
+    top->i_osd_flip = atoi(plus("osdflip", "0").c_str()) & 1;
+    top->i_crt_h = atoi(plus("crth", "0").c_str()) & 15;
+    top->i_crt_v = atoi(plus("crtv", "0").c_str()) & 7;
     const int flag = atoi(plus("flagrall", "0").c_str());
     const int lines = flag ? 240 : 224;
     const size_t frame_px = 320 * (size_t)lines;

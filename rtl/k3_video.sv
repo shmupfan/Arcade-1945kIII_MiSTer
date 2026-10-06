@@ -56,6 +56,12 @@ module k3_video #(
     input  logic        i_tim_rst,      // FREE_TIMING: synchronous raster reload
     output logic        o_tim_evt,      // FREE_TIMING: the next pixel starts the power-on line
     input  logic        i_flagrall,     // 0: k3 sets, 1: '96 Flag Rally
+    // OSD (m4_findings 11), taken at vblank start: CRT position (two's
+    // complement) and a 180 degree flip in the renderer (the board has no
+    // flip screen, spec 4)
+    input  logic [3:0]  i_crt_h,        // picture right by 2 px a step (-16..+14)
+    input  logic [2:0]  i_crt_v,        // picture down by 1 line a step (-4..+3)
+    input  logic        i_osd_flip,
 
     // CPU side, decoded by the system (M2): word address within each RAM,
     // 68000 byte enables {UDS, LDS}
@@ -110,8 +116,9 @@ module k3_video #(
   localparam logic [22:0] TILE_BASE = 23'h500000;
   localparam int H_ACT = 320;
   localparam int H_TOTAL = 432;
-  // sync positions are not in the driver (spec 5, research item R5)
-  localparam int HS_START = 352, HS_END = 384;
+  // sync positions are not in the driver (spec 5, research item R5); the
+  // OSD CRT position moves the sync pulses only (m4_findings 11)
+  localparam int HS_START = 352, HS_LEN = 32;
 
   wire [8:0]  v_act   = i_flagrall ? 9'd240 : 9'd224;
   wire [8:0]  v_total = i_flagrall ? 9'd315 : 9'd262;
@@ -146,6 +153,28 @@ module k3_video #(
   wire line_start = ce_pix && hcnt == 9'd0;
   always_ff @(posedge clk)
     o_vbl_irq <= rst_n && line_start && vcnt == v_act && irq_armed;
+
+  // OSD settings, taken at vblank start (whole frames only). A later sync
+  // moves the picture left, so the sync moves against the offset.
+  logic [8:0] hs_beg, vs_beg;
+  logic       flip_f;
+  always_ff @(posedge clk) begin
+    if (tim_rst) begin
+      hs_beg <= 9'(HS_START);
+      vs_beg <= v_act + 9'd8;
+      flip_f <= 1'b0;
+    end else if (o_tim_evt) begin
+      hs_beg <= 9'(HS_START) - {{4{i_crt_h[3]}}, i_crt_h, 1'b0};
+      vs_beg <= vs_start - {{6{i_crt_v[2]}}, i_crt_v};
+      flip_f <= i_osd_flip;
+    end
+  end
+  // vsync starts and ends on an hsync leading edge: MiSTer's composite sync
+  // is HS XOR VS, so a VS edge between hsyncs is a false sync pulse that
+  // pulls the CRT's line timing just above the picture (m4_findings 11)
+  wire vs_on = (vcnt == vs_beg && hcnt >= hs_beg) ||
+               (vcnt > vs_beg && vcnt < vs_beg + 9'd3) ||
+               (vcnt == vs_beg + 9'd3 && hcnt < hs_beg);
 
   // ================================================================ registers
   logic [15:0] scrollx, scrolly;
@@ -317,7 +346,9 @@ module k3_video #(
   assign o_copy_busy = cp_run || cp_v1;
 
   // ================================================================ renderer
-  // line buffer: 2 halves x 512, pen in [8:0]
+  // line buffer: 2 halves x 512, pen in [8:0]; flipped, scan-out reads
+  // each line right to left
+  wire [8:0]   lb_rx = flip_f ? 9'(H_ACT - 1) - hcnt : hcnt;
   logic        lb_we;
   logic [9:0]  lb_wa;
   logic [8:0]  lb_wd;
@@ -325,7 +356,7 @@ module k3_video #(
   /* verilator lint_off PINCONNECTEMPTY */
   k3_dpram #(.AW(10), .DW(16)) u_lb (
     .clk, .addr_a(lb_wa), .d_a({7'd0, lb_wd}), .we_a(lb_we), .be_a(2'b11),
-    .q_a(), .addr_b({vcnt[0], hcnt}), .q_b(lb_q));
+    .q_a(), .addr_b({vcnt[0], lb_rx}), .q_b(lb_q));
   /* verilator lint_on PINCONNECTEMPTY */
 
   // ---- line start
@@ -335,11 +366,13 @@ module k3_video #(
   logic        busy, pend;
   logic [8:0]  pend_line;
   logic [8:0]  r_line;
+  logic [8:0]  r_src;           // source line: r_line, or v_act - 1 - r_line flipped
   logic [8:0]  r_sx;
   logic [8:0]  r_ty;            // map row pixel (line + scrolly) mod 512
   logic [15:0] cyc, maxcyc, overruns;
   wire         go = !busy && (want_line || pend);
   wire [8:0]   go_line = want_line ? next_line : pend_line;
+  wire [8:0]   go_src  = flip_f ? v_act - 9'd1 - go_line : go_line;
 
   // ---- tile issuer
   logic [4:0]  t_k;             // tile 0..20 of the line
@@ -414,7 +447,7 @@ module k3_video #(
   // walker stage 1 (w_v1): the entry is on the sprite buffer outputs; test
   // the line (spec 8.1) and look up the tile's flag. Stage 2 (w_v2): queue
   // the hit if the tile has a non-zero pixel.
-  wire [7:0]  w_dy   = r_line[7:0] - s0_q[7:0];
+  wire [7:0]  w_dy   = r_src[7:0] - s0_q[7:0];
   wire [13:0] w_code = s1_q[14:1];
   wire [13:0] w_cmod = (i_flagrall && w_code >= 14'd12288) ? w_code - 14'd12288 : w_code;   // spec 8.2
   logic [15:0] tflag_q;
@@ -460,8 +493,9 @@ module k3_video #(
       if (go) begin
         busy <= 1'b1;
         r_line <= go_line;
+        r_src  <= go_src;
         r_sx <= scrollx[8:0];
-        r_ty <= go_line + scrolly[8:0];
+        r_ty <= go_src + scrolly[8:0];
         t_st <= T_ADDR;
         t_k <= '0;
         t_j <= '0;
@@ -562,8 +596,8 @@ module k3_video #(
       o_de     <= hcnt < 9'(H_ACT) && vcnt < v_act;
       o_hblank <= hcnt >= 9'(H_ACT);
       o_vblank <= vcnt >= v_act;
-      o_hs     <= hcnt >= 9'(HS_START) && hcnt < 9'(HS_END);
-      o_vs     <= vcnt >= vs_start && vcnt < vs_start + 9'd3;
+      o_hs     <= hcnt >= hs_beg && hcnt < hs_beg + 9'(HS_LEN);
+      o_vs     <= vs_on;
       // black while the core is held in reset (FREE_TIMING keeps sync running)
       o_r      <= (rst_n || !FREE_TIMING) ? x5(pal_q[4:0])   : 8'd0;
       o_g      <= (rst_n || !FREE_TIMING) ? x5(pal_q[9:5])   : 8'd0;
